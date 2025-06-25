@@ -23,14 +23,34 @@ export default class MbtPreTestExecuter {
   }
 
   private static async ensureHpToolsLauncher(): Promise<void> {
-    //TODO : Make this configurable via environment variable or so
-    const exeUrl = 'https://raw.githubusercontent.com/dorin7bogdan/github-action-ft-integration/main/HpToolsLauncher.exe';
+    const repo = process.env.GITHUB_ACTION_REPOSITORY; // e.g., dorin7bogdan/github-action-ft-integration
+    const ref = process.env.GITHUB_ACTION_REF; // e.g., main
+    _logger.debug(`ensureHpToolsLauncher: repo=[${repo}], ref=[${ref}] ...`);
+    if (!repo) {
+      const errorMsg = `Missing environment variable: GITHUB_ACTION_REPOSITORY`;
+      _logger.error(errorMsg);
+      throw new Error(errorMsg);
+    }
+
+    const exeUrl = `https://raw.githubusercontent.com/${repo}/${ref ?? "main"}/bin/HpToolsLauncher.exe`;
 
     try {
       // Check if executable already exists
       await fs.access(_exePath, fs.constants.F_OK);
       _logger.debug(`HpToolsLauncher.exe already exists at ${_workDir}`);
     } catch {
+      _logger.debug(`Checking URL validity: [${exeUrl}]`);
+      await new Promise<void>((resolve, reject) => {
+        const req = https.request(exeUrl, { method: 'HEAD' }, (res) => {
+          if (res.statusCode !== 200) {
+            return reject(new Error(`Invalid URL: HTTP ${res.statusCode}`));
+          }
+          resolve();
+        });
+        req.on('error', reject);
+        req.end();
+      });
+
       _logger.debug(`Downloading HpToolsLauncher.exe from ${exeUrl}`);
       const exeBuffer = await new Promise<Buffer>((resolve, reject) => {
         https.get(exeUrl, (res) => {
