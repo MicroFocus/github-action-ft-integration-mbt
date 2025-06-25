@@ -49,7 +49,7 @@ export default class MbtDataPrepConverter {
     const testName = testDataMap.get(runId)?.testName!;
     const strEncodedIterations = this.extractDataTableIterations(mbtTestData.data, testName);
     return {
-      executionId: executionId,
+      //executionId: executionId,
       runId: runId,
       testName: testName,
       scriptData: mbtScript,

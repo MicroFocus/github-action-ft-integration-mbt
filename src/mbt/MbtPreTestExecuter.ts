@@ -1,18 +1,99 @@
 import * as path from 'path';
-import * as fs from 'fs/promises';
+import { promises as fs } from 'fs';
+import { spawn } from 'child_process';
+import https from 'https';
 import { Logger } from '../utils/logger';
 import { TestResources, RecoveryScenarioData } from './TestResources';
 import { formatTimestamp, getGuiTestDocument } from '../utils/utils';
 import { TspParseError } from '../utils/TspParseError';
 import { MbtScriptData, MbtTestInfo } from './MbtTestData';
+import { ExitCode } from './ExitCode';
 
 const _logger = new Logger('MbtPreTestExecuter');
+const _workDir = process.cwd();
+const _exePath = path.join(_workDir, 'HpToolsLauncher.exe');
 
 export default class MbtPreTestExecuter {
+  public static async preProcess(mbtTestInfos: MbtTestInfo[]): Promise<ExitCode> {
+    _logger.debug(`preProcess: mbtTestInfos.length=${mbtTestInfos.length} ...`);
+    const mbtPropsFullPath = await this.createMbtPropsFile(mbtTestInfos);
+    await this.ensureHpToolsLauncher();
+    const exitCode = await this.runHpToolsLauncher(mbtPropsFullPath);
+    return exitCode;
+  }
 
-  public static async createMbtPropsFile(testInfos: MbtTestInfo[]): Promise<string> {
+  private static async ensureHpToolsLauncher(): Promise<void> {
+    //TODO : Make this configurable via environment variable or so
+    const exeUrl = 'https://raw.githubusercontent.com/dorin7bogdan/github-action-ft-integration/main/HpToolsLauncher.exe';
+
+    try {
+      // Check if executable already exists
+      await fs.access(_exePath, fs.constants.F_OK);
+      _logger.debug(`HpToolsLauncher.exe already exists at ${_workDir}`);
+    } catch {
+      _logger.debug(`Downloading HpToolsLauncher.exe from ${exeUrl}`);
+      const exeBuffer = await new Promise<Buffer>((resolve, reject) => {
+        https.get(exeUrl, (res) => {
+          if (res.statusCode !== 200) {
+            return reject(new Error(`Failed to download: HTTP ${res.statusCode}`));
+          }
+          const chunks: Buffer[] = [];
+          res.on('data', (chunk) => chunks.push(chunk));
+          res.on('end', () => resolve(Buffer.concat(chunks)));
+          res.on('error', reject);
+        }).on('error', reject);
+      });
+
+      // Save executable to disk
+      await fs.writeFile(_exePath, exeBuffer);
+      _logger.info(`Saved HpToolsLauncher.exe to ${_workDir}`);
+    }
+  }
+
+  private static async runHpToolsLauncher(mbtPropsFullPath: string): Promise<ExitCode> {
+    const args = ['-paramfile', mbtPropsFullPath];
+
+    try {
+      await fs.access(_exePath, fs.constants.F_OK | fs.constants.X_OK);
+      _logger.info(`HpToolsLauncher.exe ${args.join(' ')}`);
+
+      return await new Promise<ExitCode>((resolve, reject) => {
+        const launcher = spawn(_exePath, args, { stdio: ['ignore', 'pipe', 'pipe'] });
+
+        launcher.stdout.on('data', (data) => {
+          const msg = data?.toString().trim();
+          msg && _logger.info(msg);
+        });
+
+        launcher.stderr.on('data', (data) => {
+          const err = data?.toString().trim();
+          err && _logger.error(err);
+        });
+
+        launcher.on('error', (error) => {
+          reject(new Error(`Failed to start HpToolsLauncher: ${error.message}`));
+        });
+
+        launcher.on('close', (code) => {
+          _logger.debug(`runHpToolsLauncher: ExitCode=${code}`);
+          // Map exit code to ExitCode enum, default to Aborted for unknown codes
+          const exitCode = Object.values(ExitCode)
+            .filter((v): v is number => typeof v === 'number')
+            .includes(code ?? -3)
+            ? (code as ExitCode)
+            : ExitCode.Unkonwn;
+          resolve(exitCode);
+        });
+      });
+    } catch (error: any) {
+      _logger.error(`runHpToolsLauncher: ${error.message}`);
+      throw new Error(`Failed to run HpToolsLauncher: ${error.message}`);
+    }
+  }
+
+  private static async createMbtPropsFile(testInfos: MbtTestInfo[]): Promise<string> {
     if (!testInfos.length) return '';
-    _logger.info(`createMbtPropsFile: length=[${testInfos.length}], executionId=${testInfos[0].executionId}`);
+    _logger.debug(`createMbtPropsFile: testInfos.length=${testInfos.length} ...`);
     const workDir = process.cwd();
     const mbtPropsPath = path.join(workDir, "___mbt");
 

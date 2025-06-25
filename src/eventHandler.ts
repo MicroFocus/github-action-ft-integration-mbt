@@ -225,7 +225,7 @@ const handleExecutorEvent = async (executionId: number, suiteRunId: number, test
     mbtTestInfos.push(mbtTestInfo);
     _logger.debug(JSON.stringify(mbtTestInfo, null, 2));
   };
-  const mbtPropsFullPath = await MbtPreTestExecuter.createMbtPropsFile(mbtTestInfos);
+  const exitCode = await MbtPreTestExecuter.preProcess(mbtTestInfos);
   //TODO
 }
 

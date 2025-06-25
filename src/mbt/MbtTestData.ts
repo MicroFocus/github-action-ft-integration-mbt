@@ -46,7 +46,7 @@ export interface MbtTestInfo extends UftTestInfo {
 }
 
 export interface UftTestInfo {
-  executionId: number;
+  //executionId: number;
   runId: number;
   testName: string;
 }
