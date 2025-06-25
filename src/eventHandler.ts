@@ -43,15 +43,16 @@ import DiscoveryResult from './discovery/DiscoveryResult';
 import { mbtPrepDiscoveryRes4Sync } from './discovery/mbtDiscoveryResultPreparer';
 import { getOrCreateCiJob } from './service/ciJobService';
 import { dispatchDiscoveryResults } from './discovery/mbtDiscoveryResultDispatcher';
-import path from 'node:path';
+import * as path from 'path';
 import GitHubClient from './client/githubClient';
 import { WorkflowInputs } from './dto/github/Workflow';
-import TestParamsParser from './test/TestParamsParser';
+import TestParamsParser from './mbt/TestParamsParser';
 import { getParamsFromConfig } from './service/parametersService';
 import CiParameter from './dto/octane/events/CiParameter';
-import MbtDataPrepConverter from './test/MbtDataPrepConverter';
-import MbtTestData, { MbtTestInfo } from './dto/octane/mbt/MbtTestData';
-import TestData from './test/TestData';
+import MbtDataPrepConverter from './mbt/MbtDataPrepConverter';
+import { MbtTestInfo } from './mbt/MbtTestData';
+import TestData from './mbt/TestData';
+import MbtPreTestExecuter from './mbt/MbtPreTestExecuter';
 
 const _config = getConfig();
 const _logger: Logger = new Logger('eventHandler');
@@ -109,7 +110,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
     case ActionsEventType.WORKFLOW_RUN:
       const ciParams = await getParamsFromConfig(_config.owner, _config.repo, workflowFileName, branchName);
       const inputs = context.payload.inputs;
-      _logger.debug(`Input params:: ${JSON.stringify(inputs, null, 0) }`);
+      _logger.debug(`Input params:: ${JSON.stringify(inputs, null, 0)}`);
       const keys = ["testsToRun", "suiteRunId", "suiteId", "executionId"];
       if (inputs && hasExecutorKeys(keys, ciParams)) {
         const { executionId, suiteId, suiteRunId, testsToRun } = {
@@ -126,7 +127,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
           _logger.debug(`Handle Executor event ...`);
           const testDataMap = TestParamsParser.parseTestData(testsToRun);
           _logger.debug("TestData: ", testDataMap);
-        await handleExecutorEvent(parseInt(executionId), parseInt(suiteRunId), testDataMap);
+          await handleExecutorEvent(parseInt(executionId), parseInt(suiteRunId), testDataMap);
           break;
         } else {
           _logger.debug(`Continue with discovery / sync ...`);
@@ -224,6 +225,7 @@ const handleExecutorEvent = async (executionId: number, suiteRunId: number, test
     mbtTestInfos.push(mbtTestInfo);
     _logger.debug(JSON.stringify(mbtTestInfo, null, 2));
   };
+  const mbtPropsFullPath = await MbtPreTestExecuter.createMbtPropsFile(mbtTestInfos);
   //TODO
 }
 
@@ -250,7 +252,7 @@ const doTestSync = async (discoveryRes: DiscoveryResult, workflowFileName: strin
 }
 
 const hasExecutorKeys = (keys: string[], params: CiParameter[]): boolean => {
-  if (params.length === 0) {
+  if (!params?.length) {
     return false;
   }
   const foundNames = new Set(params.map(param => param.name));

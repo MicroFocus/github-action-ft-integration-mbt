@@ -167,7 +167,7 @@ async function getDiffEntries(toolType: ToolType, dir: string, oldCommit: string
     }
   }) ?? [];
 
-  if (results.length === 0) {
+  if (!results?.length) {
     console.warn('No differences found.');
     return [];
   }
@@ -223,7 +223,7 @@ async function getDiffEntries(toolType: ToolType, dir: string, oldCommit: string
     finalResults.push({ ...other, op: 'MODIFY' });
   }
 
-  if (finalResults.length === 0) {
+  if (!finalResults?.length) {
     console.warn('No differences found.');
   }
 

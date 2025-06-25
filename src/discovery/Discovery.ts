@@ -8,22 +8,19 @@ import ToolType from '../dto/ft/ToolType';
 import AutomatedTest from '../dto/ft/AutomatedTest';
 import ScmResourceFile from '../dto/ft/ScmResourceFile';
 import { OctaneStatus } from '../dto/ft/OctaneStatus';
-import { DOMParser, Document, Element } from '@xmldom/xmldom';
-import * as CFB from 'cfb';
+import { Document, Element } from '@xmldom/xmldom';
 import UftoTestAction from '../dto/ft/UftoTestAction';
 import UftoTestParam from '../dto/ft/UftoTestParam';
 import ScmChangesWrapper, { ScmAffectedFileWrapper } from './ScmChangesWrapper';
-import { getHeadCommitSha, getParentFolderFullPath, getTestPathPrefix, getTestType, isBlank, isTestMainFile } from '../utils/utils';
+import { getHeadCommitSha, getParentFolderFullPath, getTestPathPrefix, getTestType, isBlank, isTestMainFile, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist } from '../utils/utils';
 import { getConfig } from '../config/config';
 import DiscoveryResult from './DiscoveryResult';
+import { TspParseError } from '../utils/TspParseError';
 
 const _config = getConfig();
 const _logger: Logger = new Logger('Discovery');
 const _toolType = _config.testingTool === "mbt" ? ToolType.MBT : ToolType.UFT;
 
-const GUI_TEST_FILE = 'Test.tsp';
-const API_ACTIONS_FILE = "actions.xml";//api test
-const COMPONENT_INFO = "ComponentInfo";
 const UFT_COMPONENT_NODE_NAME = "Component";
 const UFT_DEPENDENCY_NODE_NAME = "Dependency";
 const UFT_ACTION_TYPE_ATTR = "Type";
@@ -49,14 +46,6 @@ const _XLSX = ".xlsx";
 const _XLS = ".xls";
 const _ST = ".st";
 const _TSP = ".tsp";
-
-class TspParseError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "TspParseError";
-  }
-}
-
 export default class Discovery {
   private _workDir: string;
   private _tests: AutomatedTest[] = [];
@@ -122,7 +111,7 @@ export default class Discovery {
   }
 
   private removeFalsePositiveDataTables(tests: ReadonlyArray<AutomatedTest>, scmResxFiles: ReadonlyArray<ScmResourceFile>) {
-    if (tests.length === 0 || scmResxFiles.length === 0) return;
+    if (!tests?.length || !scmResxFiles?.length) return;
 
     // Precompute test paths into a Set
     const testPaths = new Set<string>(tests.map(t => isBlank(t.packageName) ? t.name : path.join(t.packageName, t.name)));
@@ -390,7 +379,7 @@ export default class Discovery {
     for (const [actionName, action] of actionMap.entries()) {
       const actionFolder = `${dirPath}/${actionName}`;
       try {
-        const resourceMtrFile = await this.getFileIfExist(actionFolder, RESOURCE_MTR);
+        const resourceMtrFile = await getFileIfExist(actionFolder, RESOURCE_MTR);
         if (resourceMtrFile) {
           await this.parseActionMtrFile(resourceMtrFile, action);
         } else {
@@ -427,8 +416,8 @@ export default class Discovery {
 
   private async parseActionMtrFile(resourceMtrFile: string, action: UftoTestAction): Promise<void> {
     const params: UftoTestParam[] = [];
-    const xmlContent = await this.extractXmlFromTspOrMtrFile(resourceMtrFile);
-    const parser = this.getSecureDocumentParser();
+    const xmlContent = await extractXmlFromTspOrMtrFile(resourceMtrFile);
+    const parser = getSafeDomParser();
     const cleanXmlContent = xmlContent.replace(/^\uFEFF/, ''); // Remove BOM if present
     const doc = parser.parseFromString(cleanXmlContent, TEXT_XML) as Document;
     const argumentsCollectionElement = doc.getElementsByTagName(UFT_PARAM_ARGS_COLL_NODE_NAME);
@@ -513,7 +502,7 @@ export default class Discovery {
 
   private async getDocument(dirPath: string, testType: UftoTestType): Promise<Document | null> {
     if (testType === UftoTestType.GUI) {
-      const doc = await this.getGuiTestDocument(dirPath);
+      const doc = await getGuiTestDocument(dirPath);
       if (!doc) {
         throw new TspParseError("No document parsed");
       }
@@ -525,125 +514,8 @@ export default class Discovery {
       }
       return doc;
     } else {
-      return this.getApiTestDocument(dirPath);
+      return getApiTestDocument(dirPath);
     };
-  }
-
-  private async getFileIfExist(dirPath: string, fileName: string): Promise<string | null> {
-    const filePath = `${dirPath}\\${fileName}`;
-    try {
-      await fs.promises.access(filePath);
-      return filePath;
-    } catch {
-      _logger.warn(`File ${filePath} does not exist`);
-      return null;
-    }
-  }
-
-  private async extractXmlFromTspOrMtrFile(filePath: string): Promise<string> {
-    try {
-      // Read the .TSP file into a Buffer
-      const data = await fs.promises.readFile(filePath);
-
-      // Parse the CFB file
-      const cfb: CFB.CFB$Container = CFB.read(data, { type: 'buffer' });
-
-      // Find the ComponentInfo stream
-      const stream = CFB.find(cfb, COMPONENT_INFO);
-      if (!stream || !stream.content) {
-        throw new Error('ComponentInfo stream not found in CFB container');
-      }
-
-      // Convert stream content to Buffer (cfb returns Buffer or Uint8Array)
-      const content = Buffer.isBuffer(stream.content)
-        ? stream.content
-        : Buffer.from(stream.content);
-
-      // Convert to UTF-16LE and extract XML
-      const fromUnicodeLE = this.bufferToUnicodeLE(content);
-      const xmlStart = fromUnicodeLE.indexOf('<');
-      if (xmlStart >= 0) {
-        return fromUnicodeLE.substring(xmlStart).replace(/\0/g, '');
-      } else {
-        throw new Error('No XML data found in ComponentInfo stream');
-      }
-    } catch (error) {
-      const err = `${(error as Error).message}`;
-      _logger.error(`Failed to extract xml from Test.tsp file: ${err}`);
-      throw new Error(err);
-    }
-  }
-
-  private bufferToUnicodeLE(buffer: Buffer): string {
-    let result = '';
-    for (let i = 0; i < buffer.length; i += 2) {
-      const charCode = buffer.readUInt16LE(i);
-      if (charCode === 0) continue; // Skip null characters
-      result += String.fromCharCode(charCode);
-    }
-    return result;
-  }
-
-  private getSecureDocumentParser(): DOMParser {
-    const parser = new DOMParser({
-      errorHandler: (level: string, msg: string) => {
-        if (level === 'error') {
-          _logger.error(`XML Parse Error: ${msg}`);
-        } else if (level === 'fatalError') {
-          throw new TspParseError(`Fatal XML Parse Error: ${msg}`);
-        }
-        return null;
-      }
-    });
-    return parser;
-  }
-
-  private async getGuiTestDocument(dirPath: string): Promise<Document | null> {
-    try {
-      const tspTestFile = await this.getFileIfExist(dirPath, GUI_TEST_FILE);
-      if (!tspTestFile) {
-        return null;
-      }
-    
-      const xmlContent = await this.extractXmlFromTspOrMtrFile(tspTestFile);
-      if (!xmlContent) {
-        _logger.warn("No valid XML content extracted from TSP file");
-        return null;
-      }
-
-      const parser = this.getSecureDocumentParser();
-      const doc = parser.parseFromString(xmlContent, TEXT_XML) as Document;
-
-      if (!doc.documentElement) {
-        throw new TspParseError("Invalid XML content: No document element found.");
-      }
-
-      return doc;
-    } catch(error: any) {
-      _logger.error("Error parsing document:" + error?.message);
-      throw error instanceof TspParseError ? error : new TspParseError(`Failed to parse document: ${error}`);
-    }
-  }
-
-  private async getApiTestDocument(dirPath: string): Promise<Document | null> {
-    try {
-      const actionsFile = await this.getFileIfExist(dirPath, API_ACTIONS_FILE);
-      if (actionsFile == null) {
-          return null;
-      }
-
-      const xmlContent = await fs.promises.readFile(actionsFile, 'utf8');
-      const parser = this.getSecureDocumentParser();
-      const cleanXmlContent = xmlContent.replace(/^\uFEFF/, ''); // Remove BOM if present
-      const doc = parser.parseFromString(cleanXmlContent, TEXT_XML) as Document;
-      if (!doc.documentElement) {
-        throw new TspParseError("Invalid XML content: No document element found.");
-      }
-      return doc;
-    } catch(error: any) {
-      _logger.error("Error parsing document: " + error?.message);
-      throw error;
-    }
   }
 
   // in case a test was moved and we need the action path prefix before the move then set orgPath to true
@@ -657,7 +529,7 @@ export default class Discovery {
   }
 
   private async getTestType(paths: string[]): Promise<UftoTestType> {
-    if (paths == null || paths.length === 0) {
+    if (!paths?.length) {
       return UftoTestType.None;
     }
     for (const p of paths) {

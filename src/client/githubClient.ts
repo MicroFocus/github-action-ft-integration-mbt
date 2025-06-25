@@ -56,7 +56,7 @@ export default class GitHubClient {
           status: 'in_progress'
         });
 
-        if (workflowRuns.workflow_runs.length === 0) {
+        if (!workflowRuns.workflow_runs.length) {
           throw new Error(`No in-progress workflow runs found for SHA ${headSHA}`);
         }
 

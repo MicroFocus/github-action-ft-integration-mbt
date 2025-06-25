@@ -78,7 +78,7 @@ const convertUnitToAction = (unit: Unit, octStatus: OctaneStatus): UftoTestActio
 
 const handleAddedTests = async (discoveryRes: DiscoveryResult) => {
   const newTests = discoveryRes.getNewTests();
-  if (newTests.length === 0) {
+  if (!newTests?.length) {
     return;
   }
   _logger.info(`Processing new tests. Count: ${newTests.length}.`);
@@ -89,14 +89,14 @@ const handleAddedTests = async (discoveryRes: DiscoveryResult) => {
     .flatMap(automatedTest => automatedTest.actions)
     .map(a => escapeQueryVal(a.repositoryPath!));
 
-  if (newActionsRepositoryPaths.length === 0) {
+  if (!newActionsRepositoryPaths?.length) {
     _logger.warn('No repository paths found for new tests.');
     return;
   }
   const qry = Query.field(REPOSITORY_PATH).inComparison(newActionsRepositoryPaths);
   const unitsFromServer = await OctaneClient.fetchUnits(qry);
 
-  if (!unitsFromServer || unitsFromServer.length === 0) {
+  if (!unitsFromServer?.length) {
     _logger.warn('No units found in Octane for the given repository paths.');
     return;
   }
@@ -111,11 +111,11 @@ const handleAddedTests = async (discoveryRes: DiscoveryResult) => {
 }
 
 const handleUpdatedTests = async (updatedTests: ReadonlyArray<AutomatedTest>) => {
-  if (!updatedTests || updatedTests.length === 0) {
+  if (!updatedTests?.length) {
     return;
   }
   updatedTests = updatedTests.filter(test => !test.isMoved);
-  if (updatedTests.length === 0) {
+  if (!updatedTests?.length) {
     return;
   }
   _logger.info(`Processing updated tests. Count: ${updatedTests.length}.`);
@@ -159,7 +159,7 @@ const handleUpdatedTests = async (updatedTests: ReadonlyArray<AutomatedTest>) =>
 }
 
 const handleDeletedTests = async (deletedTests: ReadonlyArray<AutomatedTest>) => {
-  if (deletedTests.length === 0) {
+  if (!deletedTests?.length) {
     return;
   }
   // create a condition for each test to fetch its units by the old test name
@@ -302,9 +302,9 @@ const handleUpdatedTestUpdatedActionCase = (
 }
 
 const handleMovedTests = async (updatedTests: ReadonlyArray<AutomatedTest>) => {
-  if (updatedTests.length === 0) return;
+  if (!updatedTests?.length) return;
   const movedTests = updatedTests.filter(test => test.isMoved);
-  if (movedTests.length === 0) return;
+  if (!movedTests?.length) return;
 
   // create a condition for each test to fetch its units by the old test name
   const qry = movedTests.reduce((acc, test) => {

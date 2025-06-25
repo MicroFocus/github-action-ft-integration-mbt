@@ -34,11 +34,18 @@ import { context } from '@actions/github';
 import * as git from 'isomorphic-git';
 import { Logger } from './logger';
 import AutomatedTest from '../dto/ft/AutomatedTest';
+import { DOMParser, Document } from '@xmldom/xmldom';
+import { TspParseError } from './TspParseError';
+import * as CFB from 'cfb';
 
 // File to store the string (hidden file to avoid cluttering the repo)
 const SYNCED_COMMIT_SHA = path.join(process.cwd(), '.synced-commit-sha');
 const SYNCED_TIMESTAMP = path.join(process.cwd(), '.synced-timestamp');
 const ACTIONS_XML = 'actions.xml';
+const COMPONENT_INFO = "ComponentInfo";
+const GUI_TEST_FILE = 'Test.tsp';
+const API_ACTIONS_FILE = "actions.xml";//api test
+const TEXT_XML = "text/xml";
 const _TSP = '.tsp';
 const _ST = '.st';
 const UTF8 = 'utf8';
@@ -235,4 +242,126 @@ const calcByExpr = (param: string, regex: RegExp, groupNum: number): string => {
   return param;
 }
 
-export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreaterOrEqual, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr };
+const getSafeDomParser = (): DOMParser => {
+  const parser = new DOMParser({
+    errorHandler: (level: string, msg: string) => {
+      if (level === 'error') {
+        _logger.error(`XML Parse Error: ${msg}`);
+      } else if (level === 'fatalError') {
+        throw new TspParseError(`Fatal XML Parse Error: ${msg}`);
+      }
+      return null;
+    }
+  });
+  return parser;
+}
+
+const extractXmlFromTspOrMtrFile = async (filePath: string): Promise<string> => {
+  try {
+    // Read the .TSP file into a Buffer
+    const data = await fs.readFile(filePath);
+
+    // Parse the CFB file
+    const cfb: CFB.CFB$Container = CFB.read(data, { type: 'buffer' });
+
+    // Find the ComponentInfo stream
+    const stream = CFB.find(cfb, COMPONENT_INFO);
+    if (!stream || !stream.content) {
+      throw new Error('ComponentInfo stream not found in CFB container');
+    }
+
+    // Convert stream content to Buffer (cfb returns Buffer or Uint8Array)
+    const content = Buffer.isBuffer(stream.content)
+      ? stream.content
+      : Buffer.from(stream.content);
+
+    // Convert to UTF-16LE and extract XML
+    const fromUnicodeLE = bufferToUnicodeLE(content);
+    const xmlStart = fromUnicodeLE.indexOf('<');
+    if (xmlStart >= 0) {
+      return fromUnicodeLE.substring(xmlStart).replace(/\0/g, '');
+    } else {
+      throw new Error('No XML data found in ComponentInfo stream');
+    }
+  } catch (error) {
+    const err = `${(error as Error).message}`;
+    _logger.error(`Failed to extract xml from Test.tsp file: ${err}`);
+    throw new Error(err);
+  }
+}
+
+const bufferToUnicodeLE = (buffer: Buffer): string => {
+  let result = '';
+  for (let i = 0; i < buffer.length; i += 2) {
+    const charCode = buffer.readUInt16LE(i);
+    if (charCode === 0) continue; // Skip null characters
+    result += String.fromCharCode(charCode);
+  }
+  return result;
+}
+
+const getGuiTestDocument = async (dirPath: string): Promise<Document | null> => {
+  try {
+    const tspTestFile = await getFileIfExist(dirPath, GUI_TEST_FILE);
+    if (!tspTestFile) {
+      return null;
+    }
+
+    const xmlContent = await extractXmlFromTspOrMtrFile(tspTestFile);
+    if (!xmlContent) {
+      _logger.warn("No valid XML content extracted from TSP file");
+      return null;
+    }
+
+    const parser = getSafeDomParser();
+    const doc = parser.parseFromString(xmlContent, TEXT_XML) as Document;
+
+    if (!doc.documentElement) {
+      throw new TspParseError("Invalid XML content: No document element found.");
+    }
+
+    return doc;
+  } catch (error: any) {
+    _logger.error("Error parsing document:" + error?.message);
+    throw error instanceof TspParseError ? error : new TspParseError(`Failed to parse document: ${error}`);
+  }
+}
+
+const getApiTestDocument = async (dirPath: string): Promise<Document | null> => {
+  try {
+    const actionsFile = await getFileIfExist(dirPath, API_ACTIONS_FILE);
+    if (actionsFile == null) {
+      return null;
+    }
+
+    const xmlContent = await fs.readFile(actionsFile, 'utf8');
+    const parser = getSafeDomParser();
+    const cleanXmlContent = xmlContent.replace(/^\uFEFF/, ''); // Remove BOM if present
+    const doc = parser.parseFromString(cleanXmlContent, TEXT_XML) as Document;
+    if (!doc.documentElement) {
+      throw new TspParseError("Invalid XML content: No document element found.");
+    }
+    return doc;
+  } catch (error: any) {
+    _logger.error("Error parsing document: " + error?.message);
+    throw error;
+  }
+}
+
+const getFileIfExist = async (dirPath: string, fileName: string): Promise<string | null> => {
+  const filePath = `${dirPath}\\${fileName}`;
+  try {
+    await fs.access(filePath);
+    return filePath;
+  } catch {
+    _logger.warn(`File ${filePath} does not exist`);
+    return null;
+  }
+}
+
+function formatTimestamp(): string { // ddMMyyyyHHmmssSSS
+  const d = new Date();
+  return `${d.getDate().toString().padStart(2, '0')}${(d.getMonth() + 1).toString().padStart(2, '0')}${d.getFullYear()}${d.getHours().toString().padStart(2, '0')}${d.getMinutes().toString().padStart(2, '0')}${d.getSeconds().toString().padStart(2, '0')}${d.getMilliseconds().toString().padStart(3, '0')}`;
+}
+
+export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreaterOrEqual, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, formatTimestamp };

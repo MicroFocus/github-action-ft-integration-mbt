@@ -47,7 +47,7 @@ import CiJob from '../dto/octane/general/CiJob';
 import CiJobBody from '../dto/octane/general/bodies/CiJobBody';
 import CiServerBody from '../dto/octane/general/bodies/CiServerBody';
 import Test from '../dto/octane/general/Test';
-import MbtTestData from '../dto/octane/mbt/MbtTestData';
+import MbtTestData from '../mbt/MbtTestData';
 const { ID, COLLECTION_NAME: MODEL_ITEMS, NAME, LOGICAL_NAME, ENTITY_NAME: MODEL_ITEM, ENTITY_SUBTYPE: MODEL_FOLDER, SUBTYPE, PARENT } = EntityConstants.ModelFolder;
 const { COLLECTION_NAME: AUTOMATED_TESTS, TEST_RUNNER } = EntityConstants.AutomatedTest;
 const { REPOSITORY_PATH } = EntityConstants.MbtUnit;
@@ -122,7 +122,7 @@ export default class OctaneClient {
       .and(Query.field(SERVER_TYPE).equal(this.GITHUB_ACTIONS))
       .and(Query.field('url').equal(escapeQueryVal(repoUrl)))
       .build();
-    const fldNames = ['instance_id','plugin_version','url','is_connected'];
+    const fldNames = ['instance_id', 'plugin_version', 'url', 'is_connected'];
     const res = await this._octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
     let ciServer;
     if (res?.total_count && res.data?.length) {
@@ -140,9 +140,9 @@ export default class OctaneClient {
     this._logger.debug(`getCiServersByType: serverType=${serverType} ...`);
 
     const ciServerQuery = Query.field(SERVER_TYPE).equal(serverType).build();
-    const fldNames = ['id','instance_id','plugin_version'];
+    const fldNames = ['id', 'instance_id', 'plugin_version'];
     const res = await this._octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).execute();
-    if (!res || res.total_count === 0 || res.data.length === 0) {
+    if (!res || !res.total_count || !res.data.length) {
       return [];
     }
     const entries = res.data;
@@ -153,7 +153,7 @@ export default class OctaneClient {
     return entries;
   };
 
-  public static getExecutor = async (ciServerId: number, name: string, subType: string): Promise<CiExecutor|null> => {
+  public static getExecutor = async (ciServerId: number, name: string, subType: string): Promise<CiExecutor | null> => {
     this._logger.debug(`getExecutor: ciServerId=${ciServerId}, name=${name} ...`);
     const q = Query.field(CI_SERVER).equal(Query.field(ID).equal(ciServerId))
       .and(Query.field(NAME).equal(escapeQueryVal(name)))
@@ -164,7 +164,7 @@ export default class OctaneClient {
     const fldNames = ['id', 'name', 'subtype', 'framework', 'scm_repository', 'ci_job', 'ci_server'];
     const res = await this._octane.get('executors').fields(...fldNames).query(q).limit(1).execute();
     const entries = res?.data ?? [];
-    if (entries.length === 0) {
+    if (!entries.length) {
       return null;
     }
     const entry = entries[0];
@@ -203,7 +203,7 @@ export default class OctaneClient {
     return entry;
   };
 
-  public static getCiServerByInstanceId = async (instanceId: string): Promise<CiServer|null> => {
+  public static getCiServerByInstanceId = async (instanceId: string): Promise<CiServer | null> => {
     this._logger.debug(`getCiServerByInstanceId: instanceId=${instanceId} ...`);
     const ciServerQuery = Query.field(INSTANCE_ID).equal(escapeQueryVal(`${instanceId}`)).build();
 
@@ -232,7 +232,7 @@ export default class OctaneClient {
    * @returns Object containing the names of the experiments as keys and the
    * activation status (true if on, false if off) as value.
    */
-  public static getFeatureToggles = async (): Promise<{[key: string]: boolean}> => {
+  public static getFeatureToggles = async (): Promise<{ [key: string]: boolean }> => {
     this._logger.info(`Getting features' statuses (on/off)...`);
 
     const response = await this._octane.executeCustomRequest(
@@ -260,7 +260,7 @@ export default class OctaneClient {
     } else {
       qry = qry.and(qry1.not());
     }
-    const fields = ['id','name','package','executable','description','test_runner'];
+    const fields = ['id', 'name', 'package', 'executable', 'description', 'test_runner'];
     const entries = await this.fetchEntities<Test>(AUTOMATED_TESTS, qry, fields);
     const mappedTests = this.mapEntitiesByPackageAndName(entries);
     mappedTests.size && this._logger.debug("Tests:");
@@ -273,7 +273,7 @@ export default class OctaneClient {
 
   public static fetchUnits = async (query: Query): Promise<Unit[]> => {
     this._logger.debug(`fetchUnits: ...`);
-    const units = await this.fetchEntities<Unit>(MODEL_ITEMS, query, ['id','name','description','repository_path','parent','test_runner']);
+    const units = await this.fetchEntities<Unit>(MODEL_ITEMS, query, ['id', 'name', 'description', 'repository_path', 'parent', 'test_runner']);
     units.forEach(u => {
       this._logger.debug("Unit:", u);
     });
@@ -281,7 +281,7 @@ export default class OctaneClient {
   }
 
   public static fetchUnitsFromFolders(scmRepositoryId: number, folderNames: ReadonlyArray<string>): Promise<Unit[]> {
-    if (!folderNames || folderNames.length === 0) {
+    if (!folderNames?.length) {
       return Promise.resolve([]);
     };
     this._logger.debug(`fetchUnitsFromFolders: scmRepositoryId=${scmRepositoryId} ...`);
@@ -297,7 +297,7 @@ export default class OctaneClient {
       .and(Query.field(SUBTYPE).equal(MODEL_FOLDER))
       .build();
 
-    const res = await this._octane.get(MODEL_ITEMS).query(qry).fields(...["id","name"]).limit(1).execute();
+    const res = await this._octane.get(MODEL_ITEMS).query(qry).fields(...["id", "name"]).limit(1).execute();
     return res?.data?.length ? res.data[0] : null;
   }
 
@@ -341,7 +341,7 @@ export default class OctaneClient {
   public static updateFolders = async (folders: FolderBody[]): Promise<Folder[]> => {
     if (folders?.length) {
       this._logger.debug(`Updating ${folders.length} folders ...`);
-      const updatedFolders = await this.putEntities<FolderBody, Folder> (MODEL_ITEMS, folders);
+      const updatedFolders = await this.putEntities<FolderBody, Folder>(MODEL_ITEMS, folders);
       this._logger.debug(`Updated folders: ${updatedFolders.length}`);
       return updatedFolders;
     }
@@ -387,8 +387,8 @@ export default class OctaneClient {
   }
 
   public static updateUnits = async (units: UnitBody[]) => {
-    if (!units || units.length === 0) return;
-    this._logger.debug(`updateUnits: lenght=${units.length} ...`);
+    if (!units?.length) return;
+    this._logger.debug(`updateUnits: length=${units.length} ...`);
     const updatedUnits = await this.putEntities<UnitBody, Unit>(MODEL_ITEMS, units);
     return updatedUnits;
   }
@@ -397,7 +397,7 @@ export default class OctaneClient {
     this._logger.debug(`getScmRepositoryId: url=[${repoURL}] ...`);
     const scmRepoQuery = Query.field('url').equal(escapeQueryVal(repoURL)).build();
     const res = await this._octane.get('scm_repository_roots').fields(ID).query(scmRepoQuery).limit(1).execute();
-    if (!res || res.total_count === 0 || res.data.length === 0) {
+    if (!res || !res.total_count || !res.data.length) {
       throw new Error(`SCM Repository not found.`);
     }
     const id = res.data[0].id;
@@ -461,7 +461,7 @@ export default class OctaneClient {
       .query(jobQuery)
       .execute();
 
-    if (!res || res.total_count === 0 || res.data.length === 0) {
+    if (!res || !res.total_count || !res.data.length) {
       return undefined;
     }
 
@@ -484,7 +484,7 @@ export default class OctaneClient {
 
     const res = await this._octane.create('ci_jobs', ciJobToCreate).fields('id,ci_id,name,ci_server{name,instance_id}').execute();
 
-    if (!res || res.total_count === 0 || res.data.length === 0) {
+    if (!res || !res.total_count || !res.data.length) {
       throw Error('Could not create the CI job entity.');
     }
 
@@ -502,7 +502,7 @@ export default class OctaneClient {
         const res = await this._octane.get(collectionName).query(qry).fields(...fields).offset(entities.length).limit(MAX_LIMIT).orderBy("id").execute();
         go = res.total_count === MAX_LIMIT && res.data?.length === MAX_LIMIT;
         res.data?.length && entities.push(...res.data);
-      } catch(error: any) {
+      } catch (error: any) {
         this._logger.error(`Error fetching entities from collection '${collectionName}': ${error.message}`);
         throw error; // Re-throw the error to be handled by the caller
       }
@@ -534,17 +534,17 @@ export default class OctaneClient {
     return results;
   }
 
-/**
- * Partitions an array into smaller arrays of a specified size.
- * @param array The array to partition.
- * @param size The size of each partition.
- * @returns An array of partitioned arrays.
- */
+  /**
+   * Partitions an array into smaller arrays of a specified size.
+   * @param array The array to partition.
+   * @param size The size of each partition.
+   * @returns An array of partitioned arrays.
+   */
   private static partition = <T>(array: T[], size: number): T[][] => {
-  const result: T[][] = [];
-  for (let i = 0; i < array.length; i += size) {
-    result.push(array.slice(i, i + size));
+    const result: T[][] = [];
+    for (let i = 0; i < array.length; i += size) {
+      result.push(array.slice(i, i + size));
+    }
+    return result;
   }
-  return result;
-}
 }
