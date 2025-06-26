@@ -73,7 +73,7 @@ export default class MbtPreTestExecuter {
     const args = ['-paramfile', mbtPropsFullPath];
     try {
       await fs.access(path.join(binPath, HP_TL_EXE), fs.constants.F_OK | fs.constants.X_OK);
-      _logger.info(`runHpToolsLauncher: ${HP_TL_EXE} ${args.join(' ')}`);
+      _logger.info(`${HP_TL_EXE} ${args.join(' ')}`);
 
       return await new Promise<ExitCode>((resolve, reject) => {
         const launcher = spawn(HP_TL_EXE, args, {
@@ -133,7 +133,7 @@ export default class MbtPreTestExecuter {
     const props: { [key: string]: string } = {
       runType: 'MBT',
       resultsFilename: 'must be here',
-      parentFolder: escapePropVal(wsDir),
+      parentFolder: escapePropVal(path.join(wsDir, "__mbt")),
       repoFolder: escapePropVal(process.cwd()),
     };
     await Promise.all(testInfos.map(async (testInfo, i) => {
