@@ -14,31 +14,41 @@ const HP_TL_EXE = 'HpToolsLauncher.exe';
 export default class MbtPreTestExecuter {
   public static async preProcess(mbtTestInfos: MbtTestInfo[]): Promise<ExitCode> {
     _logger.debug(`preProcess: mbtTestInfos.length=${mbtTestInfos.length} ...`);
-
-    for (const [key, value] of Object.entries(process.env)) {
-      if (key.startsWith('GITHUB_') || key.startsWith('RUNNER_')) {
-        _logger.debug(`${key}=${value}`);
-      }
-    }
-
     const mbtPropsFullPath = await this.createMbtPropsFile(mbtTestInfos);
-    const exitCode = await this.runHpToolsLauncher(mbtPropsFullPath);
+    await this.ensureMbtPropsExists(mbtPropsFullPath);
+    const actionBinPath = await this.ensureHTLExists();
+    const exitCode = await this.runHpToolsLauncher(actionBinPath, mbtPropsFullPath);
     return exitCode;
   }
 
-  private static async ensureHTLExists(): Promise<void> {
-    const actionPath = process.env.GITHUB_ACTION_PATH; // e.g., C:\GitHub_runner\_work\_actions\dorin7bogdan\github-action-ft-integration\main
-    _logger.debug(`ensureHpToolsLauncher: actionPath=[${actionPath}] ...`);
-    if (!actionPath) {
-      const err = `Missing environment variable: GITHUB_ACTION_PATH`;
+  private static async ensureHTLExists(): Promise<string> {
+    _logger.debug(`ensureHTLExists: Checking for ${HP_TL_EXE} ...`);
+    const runnerWorkspace = process.env.RUNNER_WORKSPACE;
+    const actionRepo = process.env.GITHUB_ACTION_REPOSITORY;
+    const actionRef = process.env.GITHUB_ACTION_REF;
+
+    let err = "";
+    if (!runnerWorkspace) {
+      err = `Missing required environment variable: RUNNER_WORKSPACE.`;
+    } else if (!actionRepo) {
+      err = `Missing required environment variable: GITHUB_ACTION_REPOSITORY.`;
+    } else if (!actionRef) {
+      err = `Missing required environment variable: GITHUB_ACTION_REF.`;
+    }
+    if (err) {
       _logger.error(err);
       throw new Error(err);
     }
 
-    const exeFullPath = path.join(actionPath, 'bin', HP_TL_EXE);
+    // Extract base runner path (remove the repo name from the end)
+    const runnerRoot = path.resolve(runnerWorkspace!, '..'); // Go up one level
+    const [owner, repo] = actionRepo!.split('/');
+    const actionBinPath = path.join(runnerRoot, '_actions', owner, repo, actionRef!, 'bin');
+    const exeFullPath = path.join(actionBinPath, HP_TL_EXE);
     try {
       await fs.access(exeFullPath, fs.constants.F_OK);
       _logger.debug(`Located [${exeFullPath}]`);
+      return actionBinPath; // Return the bin path where HpToolsLauncher.exe is located
     } catch (error: any) {
       const err = `Failed to locate [${exeFullPath}]: ${error.message}`;
       _logger.error(err);
@@ -48,6 +58,7 @@ export default class MbtPreTestExecuter {
 
   private static async ensureMbtPropsExists(mbtPropsFullPath: string): Promise<void> {
     try {
+      _logger.debug(`ensureMbtPropsExists: mbtPropsFullPath=[${mbtPropsFullPath}] ...`);
       await fs.access(mbtPropsFullPath, fs.constants.F_OK | fs.constants.R_OK);
       _logger.debug(`Located [${mbtPropsFullPath}]`);
     } catch (error: any) {
@@ -57,12 +68,8 @@ export default class MbtPreTestExecuter {
     }
   }
 
-  private static async runHpToolsLauncher(mbtPropsFullPath: string): Promise<ExitCode> {
-    _logger.debug(`runHpToolsLauncher: mbtPropsFullPath=[${mbtPropsFullPath}] ...`);
-    await this.ensureHTLExists();
-    await this.ensureMbtPropsExists(mbtPropsFullPath);
-    const actionPath = process.env.GITHUB_ACTION_PATH!; // e.g., C:\GitHub_runner\_work\_actions\dorin7bogdan\github-action-ft-integration\main
-    const binPath = path.join(actionPath, 'bin');
+  private static async runHpToolsLauncher(binPath: string, mbtPropsFullPath: string): Promise<ExitCode> {
+    _logger.debug(`runHpToolsLauncher: binPath=[${binPath}], mbtPropsFullPath=[${mbtPropsFullPath}] ...`);
     const args = ['-paramfile', mbtPropsFullPath];
     try {
       await fs.access(path.join(binPath, HP_TL_EXE), fs.constants.F_OK | fs.constants.X_OK);
@@ -107,18 +114,18 @@ export default class MbtPreTestExecuter {
   private static async createMbtPropsFile(testInfos: MbtTestInfo[]): Promise<string> {
     if (!testInfos.length) return '';
     _logger.debug(`createMbtPropsFile: testInfos.length=${testInfos.length} ...`);
-    const tempDir = process.env.RUNNER_TEMP; // e.g., C:\GitHub_runner\_work\_temp\
-    if (!tempDir) {
-      const err = `Missing environment variable: RUNNER_TEMP`;
+    const wsDir = process.env.RUNNER_WORKSPACE; // e.g., C:\GitHub_runner\_work\ufto-tests\
+    if (!wsDir) {
+      const err = `Missing environment variable: RUNNER_WORKSPACE`;
       _logger.error(err);
       throw new Error(err);
     }
-    // Check read/write access to RUNNER_TEMP
+    // Check read/write access to RUNNER_WORKSPACE
     try {
-      await fs.access(tempDir, fs.constants.R_OK | fs.constants.W_OK);
-      _logger.debug(`Read/write access confirmed for [${tempDir}]`);
+      await fs.access(wsDir, fs.constants.R_OK | fs.constants.W_OK);
+      _logger.debug(`Read/write access confirmed for [${wsDir}]`);
     } catch (error: any) {
-      const err = `No read/write access to [${tempDir}]: ${error.message}`;
+      const err = `No read/write access to [${wsDir}]: ${error.message}`;
       _logger.error(err);
       throw new Error(err);
     }
@@ -126,7 +133,7 @@ export default class MbtPreTestExecuter {
     const props: { [key: string]: string } = {
       runType: 'MBT',
       resultsFilename: 'must be here',
-      parentFolder: escapePropVal(tempDir),
+      parentFolder: escapePropVal(wsDir),
       repoFolder: escapePropVal(process.cwd()),
     };
     await Promise.all(testInfos.map(async (testInfo, i) => {
@@ -139,7 +146,7 @@ export default class MbtPreTestExecuter {
       props[`datableParams${idx}`] = testInfo.encodedIterationsStr;
     }));
 
-    const mbtPropsFullPath = path.join(tempDir, `mbt_props_${formatTimestamp()}.txt`);
+    const mbtPropsFullPath = path.join(wsDir, `mbt_props_${formatTimestamp()}.txt`);
 
     try {
       await fs.writeFile(mbtPropsFullPath, Object.entries(props).map(([k, v]) => `${k}=${v}`).join('\n'));

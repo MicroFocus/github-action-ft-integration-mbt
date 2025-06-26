@@ -60,6 +60,14 @@ const _logger: Logger = new Logger('eventHandler');
 export const handleCurrentEvent = async (): Promise<void> => {
   _logger.info('BEGIN handleEvent ...');
 
+  if (_config.logLevel === 2) {
+    for (const [key, value] of Object.entries(process.env)) {
+      if (key.startsWith('GITHUB_') || key.startsWith('RUNNER_')) {
+        _logger.debug(`${key}=${value}`);
+      }
+    }
+  }
+
   const event: ActionsEvent = context.payload;
   const eventName = context.eventName;
 
