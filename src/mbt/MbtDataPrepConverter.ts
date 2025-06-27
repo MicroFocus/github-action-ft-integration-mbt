@@ -27,7 +27,6 @@ export default class MbtDataPrepConverter {
 
   private static extractDataTableIterations(data: MbtDataSet, testName: string): string {
     _logger.debug(`extractDataTableIterations: testName=${testName} ...`);
-    let encodedIterationsStr = "";
     if (data?.parameters?.length) {
       const csvRows: string[] = [];
       csvRows.push(data.parameters.map(this.escapeCsvVal).join(",")); // add header row
@@ -36,42 +35,38 @@ export default class MbtDataPrepConverter {
         csvRows.push(row);
       });
       const csvStr = csvRows.join("\n");
-      encodedIterationsStr = Buffer.from(csvStr, 'utf-8').toString('base64');
       _logger.debug(`csvStr=${csvStr}`);
+      return Buffer.from(csvStr, 'utf-8').toString('base64');
     }
-    return encodedIterationsStr;
+    return "";
   }
 
-  public static buildMbtTestInfo(repoFolderPath: string, executionId: number, runId: number, mbtTestData: MbtTestData, testDataMap: Map<number, TestData>): MbtTestInfo {
-    _logger.debug(`buildMbtTestInfo: executionId=${executionId}, runId=${runId} ...`);
-    const mbtScript = this.generateScriptData(mbtTestData.actions, repoFolderPath);
-    const underlyingTests = mbtTestData.actions.map(ud => ud.testPath ?? "");
-    const unitIds = mbtTestData.actions.map(ud => ud.unitId);
+  public static buildMbtTestInfo(repoFolderPath: string, runId: number, mbtTestData: MbtTestData, testDataMap: Map<number, TestData>): MbtTestInfo {
     const testName = testDataMap.get(runId)?.testName!;
-    const strEncodedIterations = this.extractDataTableIterations(mbtTestData.data, testName);
+    _logger.debug(`buildMbtTestInfo: testName=${testName}, runId=${runId} ...`);
     return {
-      //executionId: executionId,
       runId: runId,
       testName: testName,
-      scriptData: mbtScript,
-      underlyingTests: underlyingTests,
-      unitIds: unitIds,
-      encodedIterationsStr: strEncodedIterations
+      scriptData: this.generateScriptData(mbtTestData.actions, repoFolderPath),
+      underlyingTests: mbtTestData.actions.map(ud => ud.testPath ?? ""),
+      unitIds: mbtTestData.actions.map(ud => ud.unitId),
+      encodedIterationsStr: this.extractDataTableIterations(mbtTestData.data, testName)
     };
   }
 
-  private static escapeCsvVal(value: string): string {
-    if (value.startsWith('"') && value.endsWith('"')) {
-      value = value.slice(1, -1); // Remove the outer quotes
+  private static escapeCsvVal(val: string): string {
+    // Remove the outer dbl-quotes
+    if (val.startsWith('"') && val.endsWith('"')) {
+      val = val.slice(1, -1);
     }
 
     // Escape internal double quotes by doubling them
-    if (value.includes('"')) {
-      value = value.replace(/"/g, '""');
+    if (val.includes('"')) {
+      val = val.replace(/"/g, '""');
     }
 
     // Enclose in double quotes if it contains special characters
-    return /[",\n\r]/.test(value) ? `"${value}"` : value;
+    return /[",\n\r]/.test(val) ? `"${val}"` : val;
   }
 
   private static extractActionParams(params: TestParam[]): string {

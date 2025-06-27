@@ -1,8 +1,8 @@
 export interface TestResources {
   functionLibraries: string[];
-  recoveryScenarioData: RecoveryScenarioData[];
+  recoveryScenarios: RecoveryScenario[];
 }
-export interface RecoveryScenarioData {
+export interface RecoveryScenario {
   path: string;
   name: string;
 }

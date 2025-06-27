@@ -229,11 +229,12 @@ const handleExecutorEvent = async (executionId: number, suiteRunId: number, test
   const repoFolderPath = workDir;
 
   for (const [runId, mbtTestData] of mbtTestSuiteData.entries()) {
-    const mbtTestInfo = MbtDataPrepConverter.buildMbtTestInfo(repoFolderPath, executionId, runId, mbtTestData, testDataMap);
+    const mbtTestInfo = MbtDataPrepConverter.buildMbtTestInfo(repoFolderPath, runId, mbtTestData, testDataMap);
     mbtTestInfos.push(mbtTestInfo);
     _logger.debug(JSON.stringify(mbtTestInfo, null, 2));
   };
   const exitCode = await MbtPreTestExecuter.preProcess(mbtTestInfos);
+  _logger.debug(`handleExecutorEvent: exitCode=${exitCode}`);
   //TODO
 }
 

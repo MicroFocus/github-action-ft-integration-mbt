@@ -2,7 +2,7 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import { spawn } from 'child_process';
 import { Logger } from '../utils/logger';
-import { TestResources, RecoveryScenarioData } from './TestResources';
+import { TestResources, RecoveryScenario } from './TestResources';
 import { escapePropVal, formatTimestamp, getGuiTestDocument } from '../utils/utils';
 import { TspParseError } from '../utils/TspParseError';
 import { MbtScriptData, MbtTestInfo } from './MbtTestData';
@@ -162,7 +162,7 @@ export default class MbtPreTestExecuter {
     _logger.debug(`extractTestResources: testPath=${testPath}`);
     const content: TestResources = {
       functionLibraries: [],
-      recoveryScenarioData: []
+      recoveryScenarios: []
     };
 
     try {
@@ -184,8 +184,8 @@ export default class MbtPreTestExecuter {
           const rsAsArray = rsPart.split('|');
           if (rsAsArray.length > 1) {
             const rsPath = path.join(testPath, rsAsArray[0]);
-            const rsData: RecoveryScenarioData = { path: rsPath, name: rsAsArray[1] };
-            content.recoveryScenarioData.push(rsData);
+            const rsData: RecoveryScenario = { path: rsPath, name: rsAsArray[1] };
+            content.recoveryScenarios.push(rsData);
           }
         });
       }
@@ -219,8 +219,8 @@ export default class MbtPreTestExecuter {
           }
         }
 
-        if (testResources.recoveryScenarioData.length) {
-          const scenarios = testResources.recoveryScenarioData.map(rs => `"${escapePropVal(rs.path)}|${rs.name}|1|1*"`).join(',');
+        if (testResources.recoveryScenarios.length) {
+          const scenarios = testResources.recoveryScenarios.map(rs => `"${escapePropVal(rs.path)}|${rs.name}|1|1*"`).join(',');
           script += `LoadRecoveryScenario ${scenarios}`;
         }
       }
