@@ -57,13 +57,13 @@ const getAutoDiscoveredFolder = async (executorId: number): Promise<BaseFolder> 
 }
 
 const createParentFolders = async (newActions: UftoTestAction[], autoDiscoveredFolder: BaseFolder): Promise<Map<string, Folder>> => {
+  _logger.debug(`createParentFolders: length=${newActions.length}, folder=${autoDiscoveredFolder.name} ...`);
   // find existing sub folders. each folder's name is the test name that contains the actions
   const existingSubFolders = await OctaneClient.fetchChildFolders(autoDiscoveredFolder);
   const existingSubFoldersMap: Map<string, Folder> = new Map<string, Folder>(
     existingSubFolders.map(folder => [folder.name, folder])
   );
 
-  // Collect test names into a set
   const testNames: Set<string> = new Set(newActions.map(action => action.testName!));
 
   // Find which folders are missing and need to be created
@@ -71,7 +71,6 @@ const createParentFolders = async (newActions: UftoTestAction[], autoDiscoveredF
     testNames.delete(folderName);
   }
   if (testNames.size > 0) {
-    _logger.debug(`Creating ${testNames.size} folders ...`);
     const newFoldersMap = await OctaneClient.createFolders(testNames, autoDiscoveredFolder);
     if (newFoldersMap?.size) {
       for (const [key, value] of newFoldersMap) {
@@ -91,7 +90,7 @@ const countDistinctTests = (units: Unit[]): number => {
 
 const updateFolders = async (folders: Folder[], oldName2newNameMap: Map<string, string>): Promise<void> => {
   if (folders?.length) {
-    _logger.debug(`Updating ${folders.length} folders ...`);
+    _logger.debug(`updateFolders: folders.length=${folders.length} ...`);
     const foldersToUpdate: FolderBody[] = folders.map((f: Folder) => {
       return { id: `${f.id}`, name: oldName2newNameMap.get(f.name) } as FolderBody;
     });
@@ -100,6 +99,7 @@ const updateFolders = async (folders: Folder[], oldName2newNameMap: Map<string, 
 }
 
 const updateParentFolders = async (scmRepositoryId: number, updatedActions: UftoTestAction[], autoDiscoveredFolder: Folder): Promise<Map<string, Folder>> => {
+  _logger.debug(`updateParentFolders: scmRepositoryId=${scmRepositoryId}, updatedActions.length=${updatedActions.length}, autoDiscoveredFolder=${autoDiscoveredFolder.name} ...`);
   const oldNameToNewNameMap = updatedActions.reduce((acc, action) => {
     if (action.moved && action.testName && action.oldTestName && action.testName !== action.oldTestName) {
       acc.set(action.oldTestName!, action.testName!);
@@ -211,7 +211,7 @@ const buildUnit = (executorId: number, scmRepositoryId: number, action: UftoTest
     }
   }
 
-  //TODO check why we need to add the unit to each param ?
+  //we need to add the unit to each param for later update
   if (unitParams) {
     action.parameters?.forEach(p => {
       unitParams.push(createUnitParam(p, unit));
@@ -222,6 +222,7 @@ const buildUnit = (executorId: number, scmRepositoryId: number, action: UftoTest
 }
 
 const dispatchNewActions = async (executorId: number, scmRepositoryId: number, newActions: UftoTestAction[], autoDiscoveredFolder: BaseFolder): Promise<boolean> => {
+  _logger.debug(`dispatchNewActions: executorId=${executorId}, scmRepositoryId=${scmRepositoryId}, length=${newActions.length}, folder=${autoDiscoveredFolder.name} ...`);
   if (newActions?.length) {
     const foldersMap = await createParentFolders(newActions, autoDiscoveredFolder);
     const paramsToAdd: UnitParamBody[] = []; // add external parameter entities list to be filled by each action creation
@@ -246,9 +247,8 @@ const dispatchNewActions = async (executorId: number, scmRepositoryId: number, n
 
 // we do not delete units. instead, we reset some of their attributes
 const dispatchDeletedActions = async (deletedActions: UftoTestAction[]): Promise<boolean> => {
+  _logger.debug(`dispatchDeletedActions: length=${deletedActions.length} ...`);
   if (deletedActions?.length) {
-    _logger.debug(`Deleting ${deletedActions.length} actions ...`);
-
     const unitsToDelete: UnitBody[] = [];
     for (const action of deletedActions) {
       if (!action.id) {

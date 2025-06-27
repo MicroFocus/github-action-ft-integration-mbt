@@ -315,6 +315,7 @@ export default class OctaneClient {
   }
 
   public static fetchChildFolders = async (parentFolder: BaseFolder, nameFilters: string[] = []): Promise<Folder[]> => {
+    this._logger.debug(`fetchChildFolders: parentFolder=${parentFolder.name}, nameFilters.length=${nameFilters.length} ...`);
     let qry = Query.field(PARENT).equal(Query.field(ID).equal(parentFolder.id))
       .and(Query.field(SUBTYPE).equal(MODEL_FOLDER));
 
@@ -327,7 +328,7 @@ export default class OctaneClient {
 
   public static createFolders = async (names: Set<string>, parentFolder: BaseFolder): Promise<Map<string, Folder>> => {
     if (names.size === 0) return new Map<string, Folder>();
-    this._logger.debug(`createFolders: size=${names.size}, parentFolder=${parentFolder.name} ...`);
+    this._logger.debug(`createFolders: size=${names.size}, parent=${parentFolder.name} ...`);
 
     const folderBodies: FolderBody[] = Array.from(names, folderName => ({
       type: MODEL_ITEM,
@@ -346,7 +347,7 @@ export default class OctaneClient {
 
   public static updateFolders = async (folders: FolderBody[]): Promise<Folder[]> => {
     if (folders?.length) {
-      this._logger.debug(`Updating ${folders.length} folders ...`);
+      this._logger.debug(`updateFolders: length=${folders.length} ...`);
       const updatedFolders = await this.putEntities<FolderBody, Folder>(MODEL_ITEMS, folders);
       this._logger.debug(`Updated folders: ${updatedFolders.length}`);
       return updatedFolders;
@@ -420,14 +421,14 @@ export default class OctaneClient {
   }
 
   private static updatePluginVersion = async (instanceId: String): Promise<void> => {
+    const ver = this.PLUGIN_VERSION;
+    this._logger.debug(`updatePluginVersion: plugin_version=${ver} ...`);
     const querystring = require('querystring');
     const sdk = '';
-    const pluginVersion = this.PLUGIN_VERSION;
     const client_id = this._config.octaneClientId;
     const selfUrl = querystring.escape(this._config.repoUrl);
-    this._logger.debug(`Updating CI Server's plugin_version to: '${this.PLUGIN_VERSION}'`);
     await this._octane.executeCustomRequest(
-      `${this.ANALYTICS_CI_INTERNAL_API_URL}/servers/${instanceId}/tasks?self-type=${this.GITHUB_ACTIONS}&api-version=1&sdk-version=${sdk}&plugin-version=${pluginVersion}&self-url=${selfUrl}&client-id=${client_id}&client-server-user=`,
+      `${this.ANALYTICS_CI_INTERNAL_API_URL}/servers/${instanceId}/tasks?self-type=${this.GITHUB_ACTIONS}&api-version=1&sdk-version=${sdk}&plugin-version=${ver}&self-url=${selfUrl}&client-id=${client_id}&client-server-user=`,
       Octane.operationTypes.get
     );
   };

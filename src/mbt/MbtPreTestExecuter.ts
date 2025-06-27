@@ -133,7 +133,7 @@ export default class MbtPreTestExecuter {
     const props: { [key: string]: string } = {
       runType: 'MBT',
       resultsFilename: 'must be here',
-      parentFolder: escapePropVal(path.join(wsDir, "__mbt")),
+      parentFolder: escapePropVal(path.join(wsDir, "___mbt")),
       repoFolder: escapePropVal(process.cwd()),
     };
     await Promise.all(testInfos.map(async (testInfo, i) => {
