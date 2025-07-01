@@ -117,10 +117,10 @@ export default class OctaneClient {
   public static getOrCreateCiServer = async (instanceId: string, name: string): Promise<CiServer> => {
     this._logger.debug(`getOrCreateCiServer: instanceId=[${instanceId}], name=[${name}], url=[${this._config.repoUrl}] ...`);
 
-    const ciServerQuery = Query.field(INSTANCE_ID).equal(escapeQueryVal(instanceId))
-      .and(Query.field(SERVER_TYPE).equal(this.GITHUB_ACTIONS))
-      .and(Query.field('url').equal(escapeQueryVal(this._config.repoUrl)))
-      .build();
+    const qryBase = Query.field(INSTANCE_ID).equal(escapeQueryVal(instanceId))
+      .and(Query.field(SERVER_TYPE).equal(this.GITHUB_ACTIONS));
+
+    const ciServerQuery = qryBase.and(Query.field('url').equal(escapeQueryVal(this._config.repoUrl))).build();
     const fldNames = ['instance_id', 'plugin_version', 'url', 'is_connected'];
     let res = await this._octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
     let ciServer;
@@ -128,6 +128,7 @@ export default class OctaneClient {
       ciServer = res.data[0];
     } else {
       const repoUrl = this._config.repoUrl.replace(/\.git$/, '');
+      const ciServerQuery = qryBase.and(Query.field('url').equal(escapeQueryVal(repoUrl))).build();
       this._logger.debug(`getOrCreateCiServer: retry with url=[${repoUrl}] ...`);
       res = await this._octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
       if (res?.total_count && res.data?.length) {
@@ -434,8 +435,9 @@ export default class OctaneClient {
   };
 
   public static getMbtTestSuiteData = async (suiteRunId: number): Promise<Map<number, MbtTestData>> => {
-    this._logger.debug(`getMbtTestSuiteData: suiteRunId=${suiteRunId} ...`);
-    const res: { [key: string]: string } = await this._octane.executeCustomRequest(`${this.CI_API_URL}/suite_runs/${suiteRunId}/get_suite_data`, Octane.operationTypes.get);
+    const url = `${this.CI_API_URL}/suite_runs/${suiteRunId}/get_suite_data`;
+    this._logger.debug(`getMbtTestSuiteData: GET ${url} ...`);
+    const res: { [key: string]: string } = await this._octane.executeCustomRequest(url, Octane.operationTypes.get);
     this._logger.debug("getMbtTestSuiteData:", res);
     const decodedMap = new Map<number, MbtTestData>();
 

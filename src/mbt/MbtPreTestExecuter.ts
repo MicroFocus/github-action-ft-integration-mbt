@@ -2,7 +2,7 @@ import * as path from 'path';
 import { promises as fs } from 'fs';
 import { Logger } from '../utils/logger';
 import { TestResources, RecoveryScenario } from './TestResources';
-import { checkFileExists, escapePropVal, formatTimestamp, getGuiTestDocument } from '../utils/utils';
+import { checkFileExists, escapePropVal, getTimestamp, getGuiTestDocument } from '../utils/utils';
 import { TspParseError } from '../utils/TspParseError';
 import { MbtScriptData, MbtTestInfo } from './MbtTestData';
 import { ExitCode } from '../ft/ExitCode';
@@ -56,7 +56,7 @@ export default class MbtPreTestExecuter {
       props[`datableParams${idx}`] = testInfo.encodedIterationsStr;
     }));
 
-    const mbtPropsFullPath = path.join(wsDir, `mbt_props_${formatTimestamp()}.txt`);
+    const mbtPropsFullPath = path.join(wsDir, `mbt_props_${getTimestamp()}.txt`);
 
     try {
       await fs.writeFile(mbtPropsFullPath, Object.entries(props).map(([k, v]) => `${k}=${v}`).join('\n'));

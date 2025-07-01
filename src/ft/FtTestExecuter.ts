@@ -4,7 +4,7 @@ import { UftTestInfo } from '../mbt/MbtTestData';
 import { Logger } from '../utils/logger';
 import { ExitCode } from './ExitCode';
 import FTL from './FTL';
-import { checkFileExists, checkReadWriteAccess, escapePropVal, formatTimestamp } from '../utils/utils';
+import { checkFileExists, checkReadWriteAccess, escapePropVal, getTimestamp } from '../utils/utils';
 
 const _logger = new Logger('FtTestExecuter');
 
@@ -23,7 +23,7 @@ export default class FtTestExecuter {
   private static async createPropsFile(testInfos: UftTestInfo[]): Promise<string> {
     if (!testInfos.length) return '';
     const wsDir = process.env.RUNNER_WORKSPACE!; // e.g., C:\GitHub_runner\_work\ufto-tests\
-    const suffix = formatTimestamp();
+    const suffix = getTimestamp();
     const propsFullPath = path.join(wsDir, `props_${suffix}.txt`);
     _logger.debug(`createPropsFile: [${propsFullPath}] ...`);
     await checkReadWriteAccess(wsDir);

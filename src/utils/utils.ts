@@ -359,7 +359,7 @@ const getFileIfExist = async (dirPath: string, fileName: string): Promise<string
   }
 }
 
-const formatTimestamp = (): string => { // ddMMyyyyHHmmssSSS
+const getTimestamp = (): string => { // ddMMyyyyHHmmssSSS
   const now = new Date();
   const pad = (n: number, width = 2) => n.toString().padStart(width, '0');
 
@@ -408,4 +408,4 @@ const checkFileExists = async (fullPath: string): Promise <void> => {
   }
 }
 
-export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreaterOrEqual, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, formatTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists };
+export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreaterOrEqual, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, getTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists };
