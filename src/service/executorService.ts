@@ -31,7 +31,7 @@ import OctaneClient from '../client/octaneClient';
 import { getConfig } from '../config/config';
 import ActionsEvent from '../dto/github/ActionsEvent';
 import CiEventCause from '../dto/octane/events/CiEventCause';
-import CiParameter from '../dto/octane/events/CiParameter';
+import CiParam from '../dto/octane/events/CiParam';
 import {
   CiEventType,
   MultiBranchType,
@@ -66,7 +66,7 @@ const sendExecutorStartEvent = async (
   branchName: string,
   startTime: number,
   baseUrl: string,
-  parameters: CiParameter[],
+  parameters: CiParam[],
   causes: CiEventCause[],
   ciServer: CiServer
 ): Promise<void> => {
@@ -99,7 +99,7 @@ const sendExecutorFinishEvent = async (
   branchName: string,
   startTime: number,
   baseUrl: string,
-  parameters: CiParameter[],
+  parameters: CiParam[],
   causes: CiEventCause[],
   ciServer: CiServer
 ): Promise<void> => {

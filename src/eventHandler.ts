@@ -35,7 +35,7 @@ import { getEventType } from './service/ciEventsService';
 import { Logger } from './utils/logger';
 import { saveSyncedCommit, getSyncedCommit, getSyncedTimestamp } from './utils/utils';
 import { context } from '@actions/github';
-import { getOrCreateTestRunner } from './service/executorService';
+import { getOrCreateTestRunner, sendExecutorStartEvent } from './service/executorService';
 import Discovery from './discovery/Discovery';
 import { UftoParamDirection } from './dto/ft/UftoParamDirection';
 import { OctaneStatus } from './dto/ft/OctaneStatus';
@@ -48,13 +48,15 @@ import GitHubClient from './client/githubClient';
 import { WorkflowInputs } from './dto/github/Workflow';
 import TestParamsParser from './mbt/TestParamsParser';
 import { getParamsFromConfig } from './service/parametersService';
-import CiParameter from './dto/octane/events/CiParameter';
+import CiParam from './dto/octane/events/CiParam';
 import MbtDataPrepConverter from './mbt/MbtDataPrepConverter';
 import { MbtTestInfo } from './mbt/MbtTestData';
 import TestData from './mbt/TestData';
 import MbtPreTestExecuter from './mbt/MbtPreTestExecuter';
 import { ExitCode } from './ft/ExitCode';
 import FtTestExecuter from './ft/FtTestExecuter';
+import { CiCausesType } from './dto/octane/events/CiTypes';
+import { convertRootCauseType } from './service/eventCauseBuilder';
 
 const _config = getConfig();
 const _logger: Logger = new Logger('eventHandler');
@@ -90,18 +92,16 @@ export const handleCurrentEvent = async (): Promise<void> => {
   }
 
   //const workflowName = event.workflow?.name;
-  const workflowRunId = event.workflow_run?.id ?? 0;
-  const workflowRunNum = event.workflow_run?.run_number ?? 0;
   const ref: string | undefined = event.ref;
-  let branchName: string | undefined;
+  let branch: string | undefined;
 
   if (ref && ref.startsWith('refs/heads/')) {
-    branchName = ref.replace('refs/heads/', '');
+    branch = ref.replace('refs/heads/', '');
   } else {
-    branchName = event.workflow_run?.head_branch; // Fallback for other event types
+    branch = event.workflow_run?.head_branch; // Fallback for other event types
   }
 
-  if (!branchName) {
+  if (!branch) {
     throw new Error('Could not determine branch name!');
   }
 
@@ -118,26 +118,15 @@ export const handleCurrentEvent = async (): Promise<void> => {
   const discovery = new Discovery(workDir);
   switch (eventType) {
     case ActionsEventType.WORKFLOW_RUN:
-      const ciParams = await getParamsFromConfig(_config.owner, _config.repo, workflowFileName, branchName);
+      const defaultParams = await getParamsFromConfig(_config.owner, _config.repo, workflowFileName, branch);
       const inputs = context.payload.inputs;
-      _logger.debug(`Input params:: ${JSON.stringify(inputs, null, 0)}`);
-      const keys = ["testsToRun", "suiteRunId", "suiteId", "executionId"];
-      if (inputs && hasExecutorKeys(keys, ciParams)) {
-        const { executionId, suiteId, suiteRunId, testsToRun } = {
-          executionId: inputs.executionId ?? '',
-          suiteId: inputs.suiteId ?? '',
-          suiteRunId: inputs.suiteRunId ?? '',
-          testsToRun: inputs.testsToRun ?? ''
-        } as WorkflowInputs;
+      _logger.debug(`Input params: ${JSON.stringify(inputs, null, 0)}`);
+      if (inputs && hasExecutorKeys(defaultParams)) {
+        const defaults: Record<string, string> = Object.fromEntries(defaultParams.map(param => [param.name, param.defaultValue ?? ""]));
+        const wfis: WorkflowInputs = { executionId: inputs.executionId ?? '', suiteId: inputs.suiteId ?? '', suiteRunId: inputs.suiteRunId ?? '', testsToRun: inputs.testsToRun ?? '' };
+        if (hasNoEmptyNorDefaultValue(wfis, defaults)) {
+          const exitCode = await handleExecutorEvent(event, defaultParams, wfis, branch, workflowFileName);
 
-        const defaults: Record<string, string> = Object.fromEntries(
-          ciParams.map(param => [param.name, param.defaultValue ?? ""])
-        );
-        if ([testsToRun, suiteRunId, suiteId, executionId].every((val, i) => val && val !== defaults[keys[i]])) {
-          _logger.debug(`Handle Executor event ...`);
-          const testDataMap = TestParamsParser.parseTestData(testsToRun);
-          _logger.debug("TestData: ", testDataMap);
-          await handleExecutorEvent(parseInt(executionId), parseInt(suiteRunId), testDataMap);
           break;
         } else {
           _logger.debug(`Continue with discovery / sync ...`);
@@ -194,25 +183,11 @@ export const handleCurrentEvent = async (): Promise<void> => {
         }
       }
 
-      await doTestSync(discoveryRes, workflowFileName, branchName!);
+      await doTestSync(discoveryRes, workflowFileName, branch!);
       const newCommit = discoveryRes.getNewCommit();
       if (newCommit !== oldCommit) {
         await saveSyncedCommit(newCommit);
       }
-      break;
-    case ActionsEventType.WORKFLOW_QUEUED:
-    case ActionsEventType.WORKFLOW_STARTED:
-    case ActionsEventType.WORKFLOW_FINISHED:
-      if (!workflowRunId) {
-        throw new Error('Event should contain workflow run id!');
-      }
-
-      if (!workflowPath) {
-        throw new Error('Event should contain workflow file path!');
-      }
-
-      _logger.debug(`TODO ....`);
-      //await handleExecutorEvent(event, workflowFileName, configParameters);
       break;
     default:
       _logger.info(`default -> eventType = ${eventType}`);
@@ -223,10 +198,47 @@ export const handleCurrentEvent = async (): Promise<void> => {
 
 };
 
-const handleExecutorEvent = async (executionId: number, suiteRunId: number, testDataMap: Map<number, TestData>): Promise<void> => {
+const handleExecutorEvent = async (event: ActionsEvent, defaultParams: CiParam[], wfis: WorkflowInputs, branch: string, workflowFileName: string): Promise<ExitCode> => {
+  const startTime = new Date().getTime();
+  const workflowRunId = event.workflow_run?.id ?? 0;
+  const workflowRunNum = event.workflow_run?.run_number ?? 0;
   const workDir = process.cwd();
-  _logger.debug(`handleExecutorEvent: executionId=${executionId}, suiteRunId=${suiteRunId}`);
-  const mbtTestSuiteData = await OctaneClient.getMbtTestSuiteData(suiteRunId);
+  _logger.debug(`handleExecutorEvent: ...`);
+  const execParams = generateExecParams(defaultParams, wfis);
+  const { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId } = getCiPredefinedVals(branch, workflowFileName);
+  const ciServer = await OctaneClient.getCiServer(ciServerInstanceId, ciServerName);
+  if (!ciServer) {
+    _logger.error(`Could not find CI server with instanceId: ${ciServerInstanceId}`);
+    return ExitCode.Aborted;
+  };
+  // TODO updatePluginVersionIfNeeded ?
+  const login = event.workflow_run?.triggering_actor.login;
+  const startEventCauses = [
+    {
+      buildCiId: `${workflowRunId}`,
+      project: ciId,
+      type: CiCausesType.UPSTREAM,
+      userId: login,
+      userName: login,
+      causes: [
+        {
+          buildCiId: `${workflowRunId}`,
+          project: parentCiId,
+          type: convertRootCauseType(event.workflow_run?.event),
+          userId: login,
+          userName: login
+        }
+      ]
+    }
+  ];
+
+  await sendExecutorStartEvent(event, executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch, startTime,
+    _config.repoUrl, execParams, startEventCauses, ciServer);
+
+  const testDataMap = TestParamsParser.parseTestData(wfis.testsToRun);
+  _logger.debug("TestData: ", testDataMap);
+
+  const mbtTestSuiteData = await OctaneClient.getMbtTestSuiteData(parseInt(wfis.suiteRunId));
   const mbtTestInfos: MbtTestInfo[] = [];
   const repoFolderPath = workDir;
 
@@ -239,6 +251,7 @@ const handleExecutorEvent = async (executionId: number, suiteRunId: number, test
   if (exitCode === ExitCode.Passed) {
     exitCode = await FtTestExecuter.preProcess(mbtTestInfos);
   }
+  return exitCode;
 
   //TODO
 }
@@ -251,13 +264,10 @@ const isMinSyncIntervalElapsed = async (minSyncInterval: number) => {
 }
 
 const doTestSync = async (discoveryRes: DiscoveryResult, workflowFileName: string, branch: string) => {
-  const ciServerInstanceId = `GHA-MBT-${_config.owner}`;
-  const ciServerName = `GHA-MBT-${_config.owner}`;
-  const executorName = `GHA-MBT-${_config.owner}.${_config.repo}.${branch}.${workflowFileName}`;
-  const jobCiId = `${_config.owner}/${_config.repo}/${workflowFileName}/executor/${branch}`;
+  const { ciServerInstanceId, ciServerName, executorName, ciId } = getCiPredefinedVals(branch, workflowFileName);
 
   const ciServer = await OctaneClient.getOrCreateCiServer(ciServerInstanceId, ciServerName);
-  const ciJob = await getOrCreateCiJob(executorName, jobCiId, ciServer, branch);
+  const ciJob = await getOrCreateCiJob(executorName, ciId, ciServer, branch);
   _logger.debug(`Ci Job id: ${ciJob.id}, name: ${ciJob.name}, ci_id: ${ciJob.ci_id}`);
   const tr = await getOrCreateTestRunner(executorName, ciServer.id, ciJob);
   _logger.debug(`ci_server.id: ${tr.ci_server.id}, ci_job.id: ${tr.ci_job.id}, scm_repository.id: ${tr.scm_repository.id}`);
@@ -265,10 +275,40 @@ const doTestSync = async (discoveryRes: DiscoveryResult, workflowFileName: strin
   await dispatchDiscoveryResults(tr.id, tr.scm_repository.id, discoveryRes);
 }
 
-const hasExecutorKeys = (keys: string[], params: CiParameter[]): boolean => {
+function getCiPredefinedVals(branch: string, workflowFileName: string) {
+  const ciServerInstanceId = `GHA-MBT-${_config.owner}`;
+  const ciServerName = `GHA-MBT-${_config.owner}`;
+  const executorName = `GHA-MBT-${_config.owner}.${_config.repo}.${branch}.${workflowFileName}`;
+  const ciId = `${_config.owner}/${_config.repo}/${workflowFileName}/executor/${branch}`;
+  const parentCiId = `${_config.owner}/${_config.repo}/${workflowFileName}/executor`;
+
+  return { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId };
+}
+
+// Helper function to check if all required keys are present in ciParams
+function hasExecutorKeys(params: CiParam[]): boolean {
   if (!params?.length) {
     return false;
   }
-  const foundNames = new Set(params.map(param => param.name));
-  return keys.every(name => foundNames.has(name));
-};
+  const requiredKeys: (keyof WorkflowInputs)[] = Object.keys({} as WorkflowInputs).map(key => key as keyof WorkflowInputs);
+  return requiredKeys.every(key => params.some(param => param.name === key));
+}
+
+// Helper function to check if all values in wfi are non-empty and different from their corresponding defaults
+function hasNoEmptyNorDefaultValue(wfi: WorkflowInputs, defaults: Record<string, string>): boolean {
+  const keys: (keyof WorkflowInputs)[] = Object.keys({} as WorkflowInputs).map(key => key as keyof WorkflowInputs);
+  return keys.every(key => wfi[key] && wfi[key] !== defaults[key]);
+}
+
+// Function to generate execParams based on defaultParams and wfi
+function generateExecParams(defaultParams: CiParam[], wfi: WorkflowInputs): CiParam[] {
+  return defaultParams.map(param => {
+    if (param.name in wfi) {
+      return {
+        ...param,
+        value: wfi[param.name as keyof WorkflowInputs]
+      };
+    }
+    return param;
+  });
+}

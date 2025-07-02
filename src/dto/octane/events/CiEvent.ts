@@ -28,7 +28,7 @@
  */
 
 import CiEventCause from './CiEventCause';
-import CiParameter from './CiParameter';
+import CiParam from './CiParam';
 import { CiEventType, PhaseType, Result } from './CiTypes';
 
 export default interface CiEvent {
@@ -44,7 +44,7 @@ export default interface CiEvent {
   scmData?: Object;
   phaseType?: PhaseType;
   causes?: CiEventCause[];
-  parameters?: CiParameter[];
+  parameters?: CiParam[];
   multiBranchType?: string;
   parentCiId?: string;
   branch?: string;

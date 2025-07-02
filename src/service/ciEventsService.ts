@@ -35,7 +35,7 @@ import WorkflowRun from '../dto/github/WorkflowRun';
 import WorkflowRunStatus from '../dto/github/WorkflowRunStatus';
 import CiEvent from '../dto/octane/events/CiEvent';
 import CiEventCause from '../dto/octane/events/CiEventCause';
-import CiParameter from '../dto/octane/events/CiParameter';
+import CiParam from '../dto/octane/events/CiParam';
 import {
   CiEventType,
   MultiBranchType,
@@ -137,7 +137,7 @@ const generateRootExecutorEvent = (
   branchName: string,
   startTime: number,
   eventType: CiEventType,
-  parameters: CiParameter[],
+  parameters: CiParam[],
   causes: CiEventCause[],
   multiBranchType: MultiBranchType,
   parentCiId: string,

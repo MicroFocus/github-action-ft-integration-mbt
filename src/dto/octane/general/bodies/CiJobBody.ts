@@ -27,7 +27,7 @@
  * limitations under the License.
  */
 
-import CiParameter from '../../events/CiParameter';
+import CiParam from '../../events/CiParam';
 import CiServerBody from './CiServerBody';
 
 export default interface CiJobBody {
@@ -38,5 +38,5 @@ export default interface CiJobBody {
   jobCiId?: string;
   branchName?: string;
   ciServer?: CiServerBody;
-  parameters?: CiParameter[];
+  parameters?: CiParam[];
 }

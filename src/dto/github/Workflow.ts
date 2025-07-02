@@ -33,7 +33,7 @@ export default interface Workflow {
   path: string;
 }
 
-export interface WorkflowInputs {
+export type WorkflowInputs = {
   executionId: string;
   suiteId: string;
   suiteRunId: string;

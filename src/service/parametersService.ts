@@ -29,7 +29,7 @@
 
 import AdmZip from 'adm-zip';
 import fsExtra from 'fs-extra';
-import CiParameter from '../dto/octane/events/CiParameter';
+import CiParam from '../dto/octane/events/CiParam';
 import GitHubClient from '../client/githubClient';
 import { Logger } from '../utils/logger';
 import { globby } from 'globby';
@@ -45,8 +45,8 @@ const getParamsFromConfig = async (
   repo: string,
   workflowFileName: string,
   branchName?: string
-): Promise<CiParameter[]> => {
-  let configParameters: CiParameter[] = [];
+): Promise<CiParam[]> => {
+  let configParameters: CiParam[] = [];
 
   const content = await getWorkflowFileContent(
     owner,
@@ -67,8 +67,8 @@ const getParametersFromLogs = async (
   owner: string,
   repo: string,
   workflowRunId: number
-): Promise<CiParameter[]> => {
-  let executionParameters: CiParameter[] = [];
+): Promise<CiParam[]> => {
+  let executionParameters: CiParam[] = [];
   const logsDestination = `${process.cwd()}/${LOGS_DIR}`;
 
   const logFiles = await getWorkflowLogs(
@@ -174,8 +174,8 @@ const parseLogsToCiParameters = (
   return executionParameters;
 };
 
-const deserializeParameters = (serializedParameters: string): CiParameter[] => {
-  const parameters: CiParameter[] = [];
+const deserializeParameters = (serializedParameters: string): CiParam[] => {
+  const parameters: CiParam[] = [];
   const parsedParameters = JSON.parse(serializedParameters);
 
   for (const [key, value] of Object.entries(parsedParameters)) {
@@ -225,8 +225,8 @@ const getWorkflowFileContent = async (
   return decodedContent;
 };
 
-const parseYamlToCiParameters = (yamlContent: string): CiParameter[] => {
-  const ciParameters: CiParameter[] = [];
+const parseYamlToCiParameters = (yamlContent: string): CiParam[] => {
+  const ciParameters: CiParam[] = [];
   const parsedObject = yaml.parse(yamlContent);
   if (!parsedObject) {
     return ciParameters;
@@ -254,7 +254,7 @@ const parseYamlToCiParameters = (yamlContent: string): CiParameter[] => {
       options: string[];
       type: string;
     };
-    const ciParameter: CiParameter = {
+    const ciParameter: CiParam = {
       name: name,
       description: inputDetails.description,
       defaultValue: inputDetails.default,

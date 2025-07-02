@@ -28,8 +28,7 @@
  */
 
 import OctaneClient from '../client/octaneClient';
-import CiParameter from '../dto/octane/events/CiParameter';
-import CiJobBody from '../dto/octane/general/bodies/CiJobBody';
+import CiParam from '../dto/octane/events/CiParam';
 import CiJob from '../dto/octane/general/CiJob';
 import CiServer from '../dto/octane/general/CiServer';
 
@@ -54,7 +53,7 @@ const getOrCreateCiJob = async (
   ciId: string,
   ciServer: CiServer,
   branchName: string,
-  parameters?: CiParameter[]
+  parameters?: CiParam[]
 ): Promise<CiJob> => {
   const ciJob = await OctaneClient.getCiJob(ciId, ciServer);
 
