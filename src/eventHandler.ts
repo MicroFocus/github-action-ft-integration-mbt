@@ -207,7 +207,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
       return ExitCode.Aborted;
     };
     // TODO updatePluginVersionIfNeeded ?
-    const startEventCauses = [
+    const causes = [
       {
         buildCiId: `${workflowRunId}`,
         project: ciId,
@@ -217,7 +217,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
       }
     ];
 
-    await sendExecutorStartEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, startEventCauses, execParams, ciServerInstanceId);
+    await sendExecutorStartEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, causes, execParams, ciServerInstanceId);
 
     const testDataMap = TestParamsParser.parseTestData(wfis.testsToRun);
     const mbtTestSuiteData = await OctaneClient.getMbtTestSuiteData(parseInt(wfis.suiteRunId));
@@ -244,7 +244,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
     // send JUNIT results to Octane
 
     //TODO need causes too?
-    await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, execParams, ciServerInstanceId, isResultsSent, res);
+    await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, causes, execParams, ciServerInstanceId, isResultsSent, res);
     logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
     return exitCode;
   }
