@@ -51,11 +51,11 @@ if (!serverUrl || !owner || !repo) {
   throw new Error('Event should contain repository details!');
 }
 
-let config: Config | undefined;
+let _config: Config | undefined;
 let errorLoadingConfig: string;
 
 try {
-  config = {
+  _config = {
     octaneUrl: getInput('octaneUrl').trim(),
     octaneSharedSpace: Number.parseInt(getInput('octaneSharedSpace').trim()),
     octaneWorkspace: Number.parseInt(getInput('octaneWorkspace').trim()),
@@ -74,16 +74,14 @@ try {
 }
 
 const getConfig = (): Config => {
-  if (!config && errorLoadingConfig) {
+  if (!_config && errorLoadingConfig) {
     throw { message: errorLoadingConfig };
-  } else if (!config) {
+  } else if (!_config) {
     throw { message: 'Config could not be loaded.' };
   }
-  return config;
+  return _config;
 };
 
-const setConfig = (newConfig: Config) => {
-  config = newConfig;
-};
+const config = getConfig();
 
-export { getConfig, setConfig };
+export { config };

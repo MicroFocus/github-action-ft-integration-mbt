@@ -38,8 +38,6 @@ import {
 import { sleep } from '../utils/utils';
 
 const pollForJobsOfTypeToFinish = async (
-  owner: string,
-  repoName: string,
   currentRun: WorkflowRun,
   workflowRunId: number,
   startTime: number,
@@ -49,8 +47,6 @@ const pollForJobsOfTypeToFinish = async (
 
   while (!done) {
     const notFinishedRuns = await getNotFinishedRuns(
-      owner,
-      repoName,
       startTime,
       currentRun
     );
@@ -58,7 +54,7 @@ const pollForJobsOfTypeToFinish = async (
     // Integration job name structure is: OctaneIntegration#${{github.event.action}}#${{github.event.workflow_run.id}}
     const runsMappedToTheirJobs: ActionsJob[][] = await Promise.all(
       notFinishedRuns.map(run =>
-        GitHubClient.getWorkflowRunJobs(owner, repoName, run.id)
+        GitHubClient.getWorkflowRunJobs(run.id)
       )
     );
 
@@ -82,15 +78,11 @@ const pollForJobsOfTypeToFinish = async (
 };
 
 const getNotFinishedRuns = async (
-  owner: string,
-  repoName: string,
   startTime: number,
   currentRun: WorkflowRun
 ): Promise<WorkflowRun[]> => {
   const runs: WorkflowRun[] = [];
-  const params: [string, string, number, number] = [
-    owner,
-    repoName,
+  const params: [number, number] = [
     startTime,
     currentRun.workflow_id
   ];

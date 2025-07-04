@@ -73,12 +73,20 @@ export default class FTL {
         });
 
         launcher.on('close', (code) => {
-          _logger.debug(`runTool: ExitCode=${code}`);
-          // Map exit code to ExitCode enum, default to Aborted for unknown codes
-          const exitCode = Object.values(ExitCode)
-            .filter((v): v is number => typeof v === 'number')
-            .includes(code ?? -3)
-            ? (code as ExitCode)
+          // Node.js returns unsigned 32-bit for negative codes (e.g., -2 => 4294967294)
+          // Normalize to signed 32-bit integer
+          let normalizedCode: number;
+          if (typeof code === 'number') {
+            normalizedCode = code > 0x7FFFFFFF ? code - 0x100000000 : code;
+          } else {
+            _logger.error('runTool: Process exited with null code (possibly killed by signal)');
+            resolve(ExitCode.Aborted); // or another appropriate value
+            return;
+          }
+
+          _logger.debug(`runTool: ExitCode=${normalizedCode}`);
+          const exitCode = Object.values(ExitCode).includes(normalizedCode)
+            ? (normalizedCode as ExitCode)
             : ExitCode.Unkonwn;
           resolve(exitCode);
         });

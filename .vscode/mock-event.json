@@ -17,9 +17,9 @@
     "name": "My-Custom-Workflow"
   },
   "inputs": {
-    "executionId": "1012",
-    "suiteId": "1111",
-    "suiteRunId": "2021",
-    "testsToRun": "v1:||VerifyPageOpen_00001|runId=2022|mbtData=mbtDataNotIncluded"
+    "executionId": "2007",
+    "suiteId": "1108",
+    "suiteRunId": "2023",
+    "testsToRun": "v1:||quick_f_00001|runId=2013|mbtData=mbtDataNotIncluded;||quick_p_00001|runId=2014|mbtData=mbtDataNotIncluded"
   }
 }

@@ -13,13 +13,12 @@ import UftoTestAction from '../dto/ft/UftoTestAction';
 import UftoTestParam from '../dto/ft/UftoTestParam';
 import ScmChangesWrapper, { ScmAffectedFileWrapper } from './ScmChangesWrapper';
 import { getHeadCommitSha, getParentFolderFullPath, getTestPathPrefix, getTestType, isBlank, isTestMainFile, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist } from '../utils/utils';
-import { getConfig } from '../config/config';
+import { config } from '../config/config';
 import DiscoveryResult from './DiscoveryResult';
 import { TspParseError } from '../utils/TspParseError';
 
-const _config = getConfig();
 const _logger: Logger = new Logger('Discovery');
-const _toolType = _config.testingTool === "mbt" ? ToolType.MBT : ToolType.UFT;
+const _toolType = config.testingTool === "mbt" ? ToolType.MBT : ToolType.UFT;
 
 const UFT_COMPONENT_NODE_NAME = "Component";
 const UFT_DEPENDENCY_NODE_NAME = "Dependency";
@@ -566,7 +565,7 @@ export default class Discovery {
       const token = core.getInput('githubToken', { required: true });
       let didFullCheckout = false;
 
-      const authRepoUrl = _config.repoUrl.replace('https://', `https://x-access-token:${token}@`);
+      const authRepoUrl = config.repoUrl.replace('https://', `https://x-access-token:${token}@`);
       _logger.debug(`Expected authRepoUrl: ${authRepoUrl}`);
 
       // Filter process.env to exclude undefined values

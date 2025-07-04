@@ -36,266 +36,131 @@ import WorkflowRunStatus from '../dto/github/WorkflowRunStatus';
 import { Logger } from '../utils/logger';
 import FileContent from '../dto/github/FileContent';
 import * as core from '@actions/core';
-import { getConfig } from '../config/config';
-const _config = getConfig();
+import { config } from '../config/config';
+const _owner_repo = { owner: config.owner, repo: config.repo };
 export default class GitHubClient {
-  private static _logger: Logger = new Logger('githubClient');
+  private static logger: Logger = new Logger('githubClient');
 
-  private static octokit = getOctokit(getConfig().githubToken);
+  private static octokit = getOctokit(config.githubToken);
 
   public static getWorkflowPath = async (headSHA: string): Promise<string> => {
-      const token = core.getInput('githubToken', { required: true });
-      const octokit = getOctokit(token);
+    const token = core.getInput('githubToken', { required: true });
+    const octokit = getOctokit(token);
 
-      try {
-        const { data: workflowRuns } = await octokit.rest.actions.listWorkflowRunsForRepo({
-          owner: _config.owner,
-          repo: _config.repo,
-          event: 'push',
-          head_sha: headSHA,
-          status: 'in_progress'
-        });
+    try {
+      const { data: workflowRuns } = await octokit.rest.actions.listWorkflowRunsForRepo({
+        owner: config.owner,
+        repo: config.repo,
+        event: 'push',
+        head_sha: headSHA,
+        status: 'in_progress'
+      });
 
-        if (!workflowRuns.workflow_runs.length) {
-          throw new Error(`No in-progress workflow runs found for SHA ${headSHA}`);
-        }
-
-        const currentRunId = context.runId;
-        const currentRun = workflowRuns.workflow_runs.find(run => run.id === currentRunId);
-        if (!currentRun) {
-          throw new Error(`Current workflow run (ID: ${currentRunId}) not found for SHA ${headSHA}`);
-        }
-        return currentRun.path; // e.g., .github/workflows/gha-ft-integration.yml
-      } catch (error) {
-        console.error('Error fetching workflow path:', error);
-        throw error; // Re-throw to allow caller to handle
+      if (!workflowRuns.workflow_runs.length) {
+        throw new Error(`No in-progress workflow runs found for SHA ${headSHA}`);
       }
+
+      const currentRunId = context.runId;
+      const currentRun = workflowRuns.workflow_runs.find(run => run.id === currentRunId);
+      if (!currentRun) {
+        throw new Error(`Current workflow run (ID: ${currentRunId}) not found for SHA ${headSHA}`);
+      }
+      return currentRun.path; // e.g., .github/workflows/gha-ft-integration.yml
+    } catch (error) {
+      this.logger.error('Error fetching workflow path:', error as Error);
+      throw error; // Re-throw to allow caller to handle
     }
+  }
 
-  public static getWorkflowRunJobs = async (
-    owner: string,
-    repo: string,
-    workflowRunId: number
-  ): Promise<ActionsJob[]> => {
-    this._logger.debug(
-      `Getting all jobs for workflow run with {run_id='${workflowRunId}'}...`
-    );
+  public static getWorkflowRunJobs = async (workflowRunId: number): Promise<ActionsJob[]> => {
+    this.logger.debug(`getWorkflowRunJobs: run_id='${workflowRunId}' ...`);
 
-    return await this.octokit.paginate(
-      this.octokit.rest.actions.listJobsForWorkflowRun,
-      {
-        owner,
-        repo,
-        run_id: workflowRunId,
-        per_page: 100
-      },
+    return await this.octokit.paginate(this.octokit.rest.actions.listJobsForWorkflowRun,
+      { ..._owner_repo, run_id: workflowRunId, per_page: 100 },
       response => response.data
     );
   };
 
-  public static getJob = async (
-    owner: string,
-    repo: string,
-    jobId: number
-  ): Promise<ActionsJob> => {
-    this._logger.debug(`Getting job with {job_id='${jobId}'}...`);
-
-    return (
-      await this.octokit.rest.actions.getJobForWorkflowRun({
-        owner,
-        repo,
-        job_id: jobId
-      })
-    ).data;
+  public static getJob = async (jobId: number): Promise<ActionsJob> => {
+    this.logger.debug(`getJob: job_id='${jobId}' ...`);
+    return (await this.octokit.rest.actions.getJobForWorkflowRun({ ..._owner_repo, job_id: jobId})).data;
   };
 
-  public static getWorkflowRunsTriggeredBeforeByStatus = async (
-    owner: string,
-    repo: string,
-    beforeTime: number,
-    workflowId: number,
-    status: WorkflowRunStatus
-  ): Promise<WorkflowRun[]> => {
-    this._logger.debug(
-      `Getting workflow runs before '${beforeTime}' with {workflow_id='${workflowId}', status='${status}'}...`
-    );
+  public static getWorkflowRunsTriggeredBeforeByStatus = async(beforeTime: number, workflowId: number, status: WorkflowRunStatus): Promise<WorkflowRun[]> => {
+    this.logger.debug(`getWorkflowRunsTriggeredBeforeByStatus: beforeTime='${beforeTime}', workflow_id='${workflowId}', status='${status}' ...`);
 
-    return (
-      await this.octokit.paginate(
-        this.octokit.rest.actions.listWorkflowRuns,
-        {
-          owner,
-          repo,
-          workflow_id: workflowId,
-          event: 'workflow_run',
-          status,
-          per_page: 100
-        },
-        response => response.data
-      )
+    return (await this.octokit.paginate(this.octokit.rest.actions.listWorkflowRuns,
+      { ..._owner_repo, workflow_id: workflowId, event: 'workflow_run', status, per_page: 100 },
+        response => response.data)
     ).filter(run => new Date(run.run_started_at!).getTime() < beforeTime);
   };
 
-  public static getWorkflowRun = async (
-    owner: string,
-    repo: string,
-    workflowRunId: number
-  ): Promise<WorkflowRun> => {
-    this._logger.debug(
-      `Getting workflow run with {run_id='${workflowRunId}'}...`
-    );
-
-    return (
-      await this.octokit.rest.actions.getWorkflowRun({
-        owner,
-        repo,
-        run_id: workflowRunId
-      })
-    ).data;
+  public static getWorkflowRun = async (workflowRunId: number): Promise<WorkflowRun> => {
+    this.logger.debug(`getWorkflowRun: run_id='${workflowRunId}' ...`);
+    return (await this.octokit.rest.actions.getWorkflowRun({ ..._owner_repo, run_id: workflowRunId })).data;
   };
 
-  public static getWorkflowRunArtifacts = async (
-    owner: string,
-    repo: string,
-    workflowRunId: number
-  ): Promise<Artifact[]> => {
-    this._logger.debug(
-      `Getting artifacts for workflow run with {run_id='${workflowRunId}'}...`
-    );
+  public static getWorkflowRunArtifacts = async (workflowRunId: number): Promise<Artifact[]> => {
+    this.logger.debug(`getWorkflowRunArtifacts: run_id='${workflowRunId}' ...`);
 
-    return await this.octokit.paginate(
-      this.octokit.rest.actions.listWorkflowRunArtifacts,
-      { owner, repo, run_id: workflowRunId, per_page: 100 },
+    return await this.octokit.paginate(this.octokit.rest.actions.listWorkflowRunArtifacts,
+      { ..._owner_repo, run_id: workflowRunId, per_page: 100 },
       response => response.data
     );
   };
 
-  public static downloadArtifact = async (
-    owner: string,
-    repo: string,
-    artifactId: number
-  ): Promise<ArrayBuffer> => {
-    this._logger.info(
-      `Downloading artifact with {artifactId='${artifactId}'}...`
-    );
+  public static downloadArtifact = async (artifactId: number): Promise<ArrayBuffer> => {
+    this.logger.info(`downloadArtifact: artifactId='${artifactId}' ...`);
 
-    return <ArrayBuffer>(
-      await this.octokit.rest.actions.downloadArtifact({
-        owner,
-        repo,
-        artifact_id: artifactId,
-        archive_format: 'zip'
-      })
+    return <ArrayBuffer>(await this.octokit.rest.actions.downloadArtifact({
+      ..._owner_repo, artifact_id: artifactId, archive_format: 'zip'
+    })
     ).data;
   };
 
-  public static getCommitIds = async (
-    owner: string,
-    repo: string,
-    branch: string,
-    since: Date
-  ): Promise<string[]> => {
+  public static getCommitIds = async (branch: string, since: Date): Promise<string[]> => {
     const isoFormattedSince = since.toISOString();
-    this._logger.debug(
-      `Getting commits since '${isoFormattedSince}' for branch '${branch}'...`
-    );
+    this.logger.debug(`getCommitIds: since '${isoFormattedSince}' for branch '${branch}' ...`);
 
-    return <string[]>(
-      await this.octokit.paginate(
-        this.octokit.rest.repos.listCommits,
-        {
-          owner,
-          repo,
-          sha: branch,
-          since: isoFormattedSince,
-          per_page: 100
-        },
-        response => response.data
-      )
+    return <string[]>(await this.octokit.paginate(this.octokit.rest.repos.listCommits,
+      { ..._owner_repo, sha: branch, since: isoFormattedSince, per_page: 100 },
+      response => response.data
+    )
     ).map(commit => commit.sha);
   };
 
-  public static getCommit = async (
-    owner: string,
-    repo: string,
-    commitSha: string
-  ): Promise<Commit> => {
-    this._logger.trace(`Getting commit with {ref='${commitSha}'}...`);
+  public static getCommit = async (commitSha: string): Promise<Commit> => {
+    this.logger.trace(`getCommit: ref='${commitSha}' ...`);
 
-    return (
-      await this.octokit.rest.repos.getCommit({
-        owner,
-        repo,
-        ref: commitSha
-      })
-    ).data;
+    return (await this.octokit.rest.repos.getCommit({ ..._owner_repo, ref: commitSha })).data;
   };
 
-  public static getPullRequestCommitIds = async (
-    owner: string,
-    repo: string,
-    pullRequestNumber: number
-  ): Promise<string[]> => {
-    this._logger.debug(
-      `Getting commits for pull request with {pull_number='${pullRequestNumber}'}...`
-    );
+  public static getPullRequestCommitIds = async (pullRequestNumber: number): Promise<string[]> => {
+    this.logger.debug(`getPullRequestCommitIds: pull_number='${pullRequestNumber}' ...`);
 
-    return <string[]>(
-      await this.octokit.paginate(
-        this.octokit.rest.pulls.listCommits,
-        {
-          owner,
-          repo,
-          pull_number: pullRequestNumber
-        },
-        response => response.data
-      )
-    ).map(commit => commit.sha);
+    return <string[]>(await this.octokit.paginate(this.octokit.rest.pulls.listCommits,
+      { ..._owner_repo, pull_number: pullRequestNumber }, response => response.data)).map(commit => commit.sha);
   };
 
-  public static getDownloadLogsUrl = async (
-    owner: string,
-    repo: string,
-    workflowRunId: number
-  ): Promise<string | undefined> => {
-    this._logger.info(
-      `Downloading logs for workflow with {run_id='${workflowRunId}'}...`
-    );
+  public static getDownloadLogsUrl = async (workflowRunId: number): Promise<string | undefined> => {
+    this.logger.info(`getDownloadLogsUrl: run_id='${workflowRunId}' ...`);
 
     const response = await this.octokit.rest.actions.downloadWorkflowRunLogs({
-      owner: owner,
-      repo,
-      run_id: workflowRunId,
-      archive_format: 'zip'
+      ..._owner_repo, run_id: workflowRunId, archive_format: 'zip'
     });
 
     if (!response.url) {
-      this._logger.warn(
-        `Couldn't get the location of the logs files for workflow with {run_id='${workflowRunId}'}...`
-      );
+      this.logger.warn(`Couldn't get the location of the logs files for workflow with {run_id='${workflowRunId}'}...`);
     }
 
     return response.url;
   };
 
-  public static getWorkflowFile = async (
-    owner: string,
-    repo: string,
-    workflowFileName: string,
-    branchName?: string
-  ): Promise<FileContent> => {
-    this._logger.info(
-      `Getting the configuration file for workflow with {workflowFileName='${workflowFileName}'}...`
-    );
+  public static getWorkflowFile = async (workflowFileName: string, branch?: string): Promise<FileContent> => {
+    this.logger.info(`getWorkflowFile: '${workflowFileName}' ...`);
 
-    const response = await this.octokit.request(
-      'GET /repos/{owner}/{repo}/contents/{path}',
-      {
-        owner: owner,
-        repo: repo,
-        path: `.github/workflows/${workflowFileName}`,
-        ...(branchName && { ref: branchName })
-      }
+    const response = await this.octokit.request('GET /repos/{owner}/{repo}/contents/{path}',
+      { ..._owner_repo, path: `.github/workflows/${workflowFileName}`, ...(branch && { ref: branch }) }
     );
 
     return <FileContent>response.data;

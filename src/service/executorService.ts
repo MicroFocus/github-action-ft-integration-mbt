@@ -28,7 +28,6 @@
  */
 
 import OctaneClient from '../client/octaneClient';
-import { getConfig } from '../config/config';
 import CiEvent from '../dto/octane/events/CiEvent';
 import CiParam from '../dto/octane/events/CiParam';
 import {
@@ -40,8 +39,7 @@ import CiExecutor from '../dto/octane/general/CiExecutor';
 import CiJob from '../dto/octane/general/CiJob';
 import { Logger } from '../utils/logger';
 
-const _config = getConfig();
-const _logger: Logger = new Logger('executorService');
+const logger: Logger = new Logger('executorService');
 
 const getOrCreateTestRunner = async (name: string, ciServerId: number, ciJob: CiJob): Promise<CiExecutor> => {
   const subType = "uft_test_runner";
@@ -105,7 +103,7 @@ const sendExecutorFinishEvent = async (
     startTime,
     branch,
     parameters: params,
-    phaseType: PhaseType.INTERNAL,
+    //phaseType: PhaseType.INTERNAL,
     duration: (new Date().getTime() - startTime),
     skipValidation: true,
     testResultExpected: true,

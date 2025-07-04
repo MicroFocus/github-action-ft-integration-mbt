@@ -28,7 +28,7 @@
  */
 
 import OctaneClient from './client/octaneClient';
-import { getConfig } from './config/config';
+import { config } from './config/config';
 import ActionsEvent from './dto/github/ActionsEvent';
 import ActionsEventType from './dto/github/ActionsEventType';
 import { getEventType } from './service/ciEventsService';
@@ -56,17 +56,16 @@ import { ExitCode } from './ft/ExitCode';
 import FtTestExecuter from './ft/FtTestExecuter';
 import { Result } from './dto/octane/events/CiTypes';
 
-const _config = getConfig();
-const _logger: Logger = new Logger('eventHandler');
-const _requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId', 'testsToRun'];
+const logger: Logger = new Logger('eventHandler');
+const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId', 'testsToRun'];
 
 export const handleCurrentEvent = async (): Promise<void> => {
-  _logger.info('BEGIN handleEvent ...');
+  logger.info('BEGIN handleEvent ...');
 
-  if (_config.logLevel === 2) {
+  if (config.logLevel === 2) {
     for (const [key, value] of Object.entries(process.env)) {
       if (key.startsWith('GITHUB_') || key.startsWith('RUNNER_')) {
-        _logger.debug(`${key}=${value}`);
+        logger.debug(`${key}=${value}`);
       }
     }
   }
@@ -74,14 +73,14 @@ export const handleCurrentEvent = async (): Promise<void> => {
   const event: ActionsEvent = context.payload;
   const eventName = context.eventName;
 
-  //event && _logger.debug(`event = ${JSON.stringify(event)}`);
+  logger.debug("event:", event);
 
   const eventType = getEventType(event?.action || eventName);
   if (eventType === ActionsEventType.UNKNOWN_EVENT) {
-    _logger.info('Unknown event type');
+    logger.info('Unknown event type');
     return;
   }
-  _logger.info(`eventType = ${event?.action || eventName}`);
+  logger.info(`eventType = ${event?.action || eventName}`);
 
   let workflowPath: string | undefined;
   if (eventType === ActionsEventType.PUSH) {
@@ -109,36 +108,36 @@ export const handleCurrentEvent = async (): Promise<void> => {
   }
   const workflowFileName = path.basename(workflowPath);
 
-  _logger.info(`Current repository URL: ${_config.repoUrl}`);
+  logger.info(`Current repository URL: ${config.repoUrl}`);
 
   const workDir = process.cwd(); //.env.GITHUB_WORKSPACE || '.';
-  _logger.info(`Working directory: ${workDir}`);
-  _logger.info(`Testing tool type: ${_config.testingTool.toUpperCase()}`);
+  logger.info(`Working directory: ${workDir}`);
+  logger.info(`Testing tool type: ${config.testingTool.toUpperCase()}`);
   const discovery = new Discovery(workDir);
   switch (eventType) {
     case ActionsEventType.WORKFLOW_RUN:
-      const defaultParams = await getParamsFromConfig(_config.owner, _config.repo, workflowFileName, branch);
+      const defaultParams = await getParamsFromConfig(workflowFileName, branch);
       const inputs = context.payload.inputs;
-      _logger.debug(`Input params: ${JSON.stringify(inputs, null, 0)}`);
+      logger.debug(`Input params: ${JSON.stringify(inputs, null, 0)}`);
       if (inputs && hasExecutorKeys(defaultParams)) {
         const defaults: Record<string, string> = Object.fromEntries(defaultParams.map(param => [param.name, param.defaultValue ?? ""]));
         const wfis: WorkflowInputs = { executionId: inputs.executionId ?? '', suiteId: inputs.suiteId ?? '', suiteRunId: inputs.suiteRunId ?? '', testsToRun: inputs.testsToRun ?? '' };
-        if (hasNoEmptyNorDefaultValue(wfis, defaults)) {
+        if (hasNoEmptyOrDefaultValue(wfis, defaults)) {
           const exitCode = await handleExecutorEvent(event, defaultParams, wfis, branch, workflowFileName);
 
           break;
         } else {
-          _logger.debug(`Continue with discovery / sync ...`);
+          logger.debug(`Continue with discovery / sync ...`);
         }
       }
     case ActionsEventType.PUSH:
       const oldCommit = await getSyncedCommit();
       if (oldCommit) {
-        const minSyncInterval = _config.minSyncInterval;
-        _logger.info(`minSyncInterval = ${minSyncInterval} minutes.`);
+        const minSyncInterval = config.minSyncInterval;
+        logger.info(`minSyncInterval = ${minSyncInterval} minutes.`);
         const isIntervalElapsed = await isMinSyncIntervalElapsed(minSyncInterval);
         if (!isIntervalElapsed) {
-          _logger.warn(`The minimum time interval of ${minSyncInterval} minutes has not yet elapsed since the last sync.`);
+          logger.warn(`The minimum time interval of ${minSyncInterval} minutes has not yet elapsed since the last sync.`);
           return;
         }
       }
@@ -146,7 +145,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
       const tests = discoveryRes.getAllTests();
       const scmResxFiles = discoveryRes.getScmResxFiles();
 
-      if (_logger.isDebugEnabled()) {
+      if (logger.isDebugEnabled()) {
         console.log(`Tests: ${tests.length}`);
         for (const t of tests) {
           console.log(`${t.name}, type = ${t.uftOneTestType}`);
@@ -189,11 +188,11 @@ export const handleCurrentEvent = async (): Promise<void> => {
       }
       break;
     default:
-      _logger.info(`default -> eventType = ${eventType}`);
+      logger.info(`default -> eventType = ${eventType}`);
       break;
   }
 
-  _logger.info('END handleEvent ...');
+  logger.info('END handleEvent ...');
 
 };
 
@@ -204,12 +203,12 @@ const handleExecutorEvent = async (event: ActionsEvent, defaultParams: CiParam[]
   const workflowRunId = event.workflow_run?.id ?? 0;
   const workflowRunNum = event.workflow_run?.run_number ?? 0;
   const workDir = process.cwd();
-  _logger.debug(`handleExecutorEvent: ...`);
+  logger.debug(`handleExecutorEvent: ...`);
   const execParams = generateExecParams(defaultParams, wfis);
   const { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId } = getCiPredefinedVals(branch, workflowFileName);
   const ciServer = await OctaneClient.getCiServer(ciServerInstanceId, ciServerName);
   if (!ciServer) {
-    _logger.error(`handleExecutorEvent: Could not find CI server with instanceId: ${ciServerInstanceId}`);
+    logger.error(`handleExecutorEvent: Could not find CI server with instanceId: ${ciServerInstanceId}`);
     return ExitCode.Aborted;
   };
   // TODO updatePluginVersionIfNeeded ?
@@ -244,13 +243,13 @@ const handleExecutorEvent = async (event: ActionsEvent, defaultParams: CiParam[]
   for (const [runId, mbtTestData] of mbtTestSuiteData.entries()) {
     const mbtTestInfo = MbtDataPrepConverter.buildMbtTestInfo(repoFolderPath, runId, mbtTestData, testDataMap);
     mbtTestInfos.push(mbtTestInfo);
-    _logger.debug(JSON.stringify(mbtTestInfo, null, 2));
+    logger.debug(JSON.stringify(mbtTestInfo, null, 2));
   };
   let exitCode = await MbtPreTestExecuter.preProcess(mbtTestInfos);
   if (exitCode === ExitCode.Passed) {
     exitCode = await FtTestExecuter.preProcess(mbtTestInfos);
   } else {
-    _logger.error(`handleExecutorEvent: Failed to convert MBT tests.`);
+    logger.error(`handleExecutorEvent: Failed to convert MBT tests.`);
     return ExitCode.Aborted;
   };
 
@@ -273,19 +272,19 @@ const doTestSync = async (discoveryRes: DiscoveryResult, workflowFileName: strin
 
   const ciServer = await OctaneClient.getOrCreateCiServer(ciServerInstanceId, ciServerName);
   const ciJob = await getOrCreateCiJob(executorName, ciId, ciServer, branch);
-  _logger.debug(`Ci Job id: ${ciJob.id}, name: ${ciJob.name}, ci_id: ${ciJob.ci_id}`);
+  logger.debug(`Ci Job id: ${ciJob.id}, name: ${ciJob.name}, ci_id: ${ciJob.ci_id}`);
   const tr = await getOrCreateTestRunner(executorName, ciServer.id, ciJob);
-  _logger.debug(`ci_server.id: ${tr.ci_server.id}, ci_job.id: ${tr.ci_job.id}, scm_repository.id: ${tr.scm_repository.id}`);
+  logger.debug(`ci_server.id: ${tr.ci_server.id}, ci_job.id: ${tr.ci_job.id}, scm_repository.id: ${tr.scm_repository.id}`);
   await mbtPrepDiscoveryRes4Sync(tr.id, tr.scm_repository.id, discoveryRes);
   await dispatchDiscoveryResults(tr.id, tr.scm_repository.id, discoveryRes);
 }
 
 function getCiPredefinedVals(branch: string, workflowFileName: string) {
-  const ciServerInstanceId = `GHA-MBT-${_config.owner}`;
-  const ciServerName = `GHA-MBT-${_config.owner}`;
-  const executorName = `GHA-MBT-${_config.owner}.${_config.repo}.${branch}.${workflowFileName}`;
-  const ciId = `${_config.owner}/${_config.repo}/${workflowFileName}/executor/${branch}`;
-  const parentCiId = `${_config.owner}/${_config.repo}/${workflowFileName}/executor`;
+  const ciServerInstanceId = `GHA-MBT-${config.owner}`;
+  const ciServerName = `GHA-MBT-${config.owner}`;
+  const executorName = `GHA-MBT-${config.owner}.${config.repo}.${branch}.${workflowFileName}`;
+  const ciId = `${config.owner}/${config.repo}/${workflowFileName}/executor/${branch}`;
+  const parentCiId = `${config.owner}/${config.repo}/${workflowFileName}/executor`;
 
   return { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId };
 }
@@ -295,12 +294,12 @@ function hasExecutorKeys(params: CiParam[]): boolean {
   if (!params?.length) {
     return false;
   }
-  return _requiredKeys.every(key => params.some(param => param.name === key));
+  return requiredKeys.every(key => params.some(param => param.name === key));
 }
 
 // Helper function to check if all values in wfi are non-empty and different from their corresponding defaults
-function hasNoEmptyNorDefaultValue(wfis: WorkflowInputs, defaults: Record<string, string>): boolean {
-  return _requiredKeys.every(key => wfis[key] && wfis[key] !== defaults[key]);
+function hasNoEmptyOrDefaultValue(wfis: WorkflowInputs, defaults: Record<string, string>): boolean {
+  return requiredKeys.every(key => wfis[key] && wfis[key] !== defaults[key]);
 }
 
 // Function to generate execParams based on defaultParams and wfi

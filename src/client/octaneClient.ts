@@ -29,7 +29,7 @@
 
 import { Octane } from '@microfocus/alm-octane-js-rest-sdk';
 import Query from '@microfocus/alm-octane-js-rest-sdk/dist/lib/query';
-import { getConfig } from '../config/config';
+import { config } from '../config/config';
 import CiEvent from '../dto/octane/events/CiEvent';
 import CiEventsList from '../dto/octane/events/CiEventsList';
 import { Logger } from '../utils/logger';
@@ -63,20 +63,19 @@ export default class OctaneClient {
   private static _logger: Logger = new Logger('octaneClient');
   private static GITHUB_ACTIONS = 'github_actions';
   private static PLUGIN_VERSION = '25.2.3';
-  private static _config = getConfig();
-  private static _octane: Octane = new Octane({
-    server: this._config.octaneUrl,
-    sharedSpace: this._config.octaneSharedSpace,
-    workspace: this._config.octaneWorkspace,
-    user: this._config.octaneClientId,
-    password: this._config.octaneClientSecret,
+  private static octane: Octane = new Octane({
+    server: config.octaneUrl,
+    sharedSpace: config.octaneSharedSpace,
+    workspace: config.octaneWorkspace,
+    user: config.octaneClientId,
+    password: config.octaneClientSecret,
     headers: _headers
   });
 
-  private static ANALYTICS_WORKSPACE_CI_INTERNAL_API_URL = `/internal-api/shared_spaces/${this._config.octaneSharedSpace}/workspaces/${this._config.octaneWorkspace}/analytics/ci`;
-  private static ANALYTICS_CI_INTERNAL_API_URL = `/internal-api/shared_spaces/${this._config.octaneSharedSpace}/analytics/ci`;
-  private static CI_INTERNAL_API_URL = `/internal-api/shared_spaces/${this._config.octaneSharedSpace}/workspaces/${this._config.octaneWorkspace}`;
-  private static CI_API_URL = `/api/shared_spaces/${this._config.octaneSharedSpace}/workspaces/${this._config.octaneWorkspace}`;
+  private static ANALYTICS_WORKSPACE_CI_INTERNAL_API_URL = `/internal-api/shared_spaces/${config.octaneSharedSpace}/workspaces/${config.octaneWorkspace}/analytics/ci`;
+  private static ANALYTICS_CI_INTERNAL_API_URL = `/internal-api/shared_spaces/${config.octaneSharedSpace}/analytics/ci`;
+  private static CI_INTERNAL_API_URL = `/internal-api/shared_spaces/${config.octaneSharedSpace}/workspaces/${config.octaneWorkspace}`;
+  private static CI_API_URL = `/api/shared_spaces/${config.octaneSharedSpace}/workspaces/${config.octaneWorkspace}`;
 
   public static sendEvents = async (events: CiEvent[], instanceId: string, url: string): Promise<void> => {
     this._logger.debug(`sendEvents: instanceId=[${instanceId}], events=${JSON.stringify(events)}`);
@@ -91,7 +90,18 @@ export default class OctaneClient {
 
     const eventsToSend: CiEventsList = { server: ciServerInfo, events };
 
-    await this._octane.executeCustomRequest(`${this.ANALYTICS_CI_INTERNAL_API_URL}/events`, Octane.operationTypes.update, eventsToSend);
+    await this.octane.executeCustomRequest(`${this.ANALYTICS_CI_INTERNAL_API_URL}/events`, Octane.operationTypes.update, eventsToSend);
+  };
+
+  public static sendTestResult = async (testResult: string, instanceId: string, jobId: string, buildId: string): Promise<void> => {
+    this._logger.debug(`sendTestResult: jobId='${jobId}, buildId='${buildId}', instanceId='${instanceId}' ...`);
+
+    await this.octane.executeCustomRequest(
+      `${this.ANALYTICS_CI_INTERNAL_API_URL}/test-results?skip-errors=true&instance-id=${instanceId}&job-ci-id=${jobId}&build-ci-id=${buildId}`,
+      Octane.operationTypes.create,
+      testResult,
+      { 'Content-Type': 'application/xml' }
+    );
   };
 
   private static createCIServer = async (name: string, instanceId: string, url: string): Promise<CiServer> => {
@@ -103,27 +113,27 @@ export default class OctaneClient {
     };
     this._logger.debug(`createCIServer: ${JSON.stringify(body)} ...`);
     const fldNames = ['id', 'name', 'instance_id', 'plugin_version', 'url', 'is_connected', 'server_type'];
-    const res = await this._octane.create(CI_SERVERS, body).fields(...fldNames).execute();
+    const res = await this.octane.create(CI_SERVERS, body).fields(...fldNames).execute();
     return res.data[0];
   };
 
   public static getCiServer = async (instanceId: string, name: string): Promise<CiServer | null> => {
-    this._logger.debug(`getCiServer: instanceId=[${instanceId}], name=[${name}], url=[${this._config.repoUrl}] ...`);
+    this._logger.debug(`getCiServer: instanceId=[${instanceId}], name=[${name}], url=[${config.repoUrl}] ...`);
 
     const qryBase = Query.field(INSTANCE_ID).equal(escapeQueryVal(instanceId))
       .and(Query.field(SERVER_TYPE).equal(this.GITHUB_ACTIONS));
 
-    const ciServerQuery = qryBase.and(Query.field('url').equal(escapeQueryVal(this._config.repoUrl))).build();
+    const ciServerQuery = qryBase.and(Query.field('url').equal(escapeQueryVal(config.repoUrl))).build();
     const fldNames = ['instance_id', 'plugin_version', 'url', 'is_connected'];
-    let res = await this._octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
+    let res = await this.octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
     let ciServer = null;
     if (res?.total_count && res.data?.length) {
       ciServer = res.data[0];
     } else {
-      const repoUrl = this._config.repoUrl.replace(/\.git$/, '');
+      const repoUrl = config.repoUrl.replace(/\.git$/, '');
       const ciServerQuery = qryBase.and(Query.field('url').equal(escapeQueryVal(repoUrl))).build();
       this._logger.debug(`getCiServer: retry with url=[${repoUrl}] ...`);
-      res = await this._octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
+      res = await this.octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
       if (res?.total_count && res.data?.length) {
         ciServer = res.data[0];
       }
@@ -133,11 +143,11 @@ export default class OctaneClient {
   };
 
   public static getOrCreateCiServer = async (instanceId: string, name: string): Promise<CiServer> => {
-    this._logger.debug(`getOrCreateCiServer: instanceId=[${instanceId}], name=[${name}], url=[${this._config.repoUrl}] ...`);
+    this._logger.debug(`getOrCreateCiServer: instanceId=[${instanceId}], name=[${name}], url=[${config.repoUrl}] ...`);
 
     let ciServer = await this.getCiServer(instanceId, name);
     if (!ciServer) {
-      const repoUrl = this._config.repoUrl.replace(/\.git$/, '');
+      const repoUrl = config.repoUrl.replace(/\.git$/, '');
       ciServer = await this.createCIServer(name, instanceId, repoUrl);
       this.updatePluginVersion(instanceId);
       ciServer.plugin_version = this.PLUGIN_VERSION;
@@ -151,7 +161,7 @@ export default class OctaneClient {
 
     const ciServerQuery = Query.field(SERVER_TYPE).equal(serverType).build();
     const fldNames = ['id', 'instance_id', 'plugin_version'];
-    const res = await this._octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).execute();
+    const res = await this.octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).execute();
     if (!res || !res.total_count || !res.data.length) {
       return [];
     }
@@ -172,7 +182,7 @@ export default class OctaneClient {
 
     //name,framework,test_runner_parameters,last_successful_sync,subtype,id,last_sync,next_sync,message,sync_status,ci_server{id},scm_repository{repository}
     const fldNames = ['id', 'name', 'subtype', 'framework', 'scm_repository', 'ci_job', 'ci_server'];
-    const res = await this._octane.get('executors').fields(...fldNames).query(q).limit(1).execute();
+    const res = await this.octane.get('executors').fields(...fldNames).query(q).limit(1).execute();
     const entries = res?.data ?? [];
     if (!entries.length) {
       return null;
@@ -200,11 +210,11 @@ export default class OctaneClient {
       },
       jobCiId: ciJob.ci_id,
       scm_type: 2, // GIT
-      scm_url: this._config.repoUrl,
+      scm_url: config.repoUrl,
     };
     this._logger.debug(`createMbtTestRunner: ${JSON.stringify(body)} ...`);
 
-    const entry = await this._octane.executeCustomRequest(`${this.CI_INTERNAL_API_URL}/je/test_runners/uft`, Octane.operationTypes.create, body);
+    const entry = await this.octane.executeCustomRequest(`${this.CI_INTERNAL_API_URL}/je/test_runners/uft`, Octane.operationTypes.create, body);
 
     if (!entry || entry.total_count === 0) {
       throw Error('Could not create the test runner entity.');
@@ -217,18 +227,18 @@ export default class OctaneClient {
     this._logger.debug(`getCiServerByInstanceId: instanceId=${instanceId} ...`);
     const ciServerQuery = Query.field(INSTANCE_ID).equal(escapeQueryVal(`${instanceId}`)).build();
 
-    const res = await this._octane.get(CI_SERVERS).fields(INSTANCE_ID).query(ciServerQuery).limit(1).execute();
+    const res = await this.octane.get(CI_SERVERS).fields(INSTANCE_ID).query(ciServerQuery).limit(1).execute();
     return res?.data?.length ? res.data[0] : null;
   };
 
   public static getSharedSpaceName = async (sharedSpaceId: number): Promise<string> => {
     this._logger.debug(`getSharedSpaceName: id=${sharedSpaceId} ...`);
-    const res = await this._octane.executeCustomRequest(`/api/shared_spaces?fields=name&query="id EQ ${sharedSpaceId}"`, Octane.operationTypes.get);
+    const res = await this.octane.executeCustomRequest(`/api/shared_spaces?fields=name&query="id EQ ${sharedSpaceId}"`, Octane.operationTypes.get);
     return res.data[0].name;
   };
 
   public static getOctaneVersion = async (): Promise<string> => {
-    const response = await this._octane.executeCustomRequest(
+    const response = await this.octane.executeCustomRequest(
       this.ANALYTICS_CI_INTERNAL_API_URL + '/servers/connectivity/status',
       Octane.operationTypes.get
     );
@@ -245,7 +255,7 @@ export default class OctaneClient {
   public static getFeatureToggles = async (): Promise<{ [key: string]: boolean }> => {
     this._logger.info(`Getting features' statuses (on/off)...`);
 
-    const response = await this._octane.executeCustomRequest(
+    const response = await this.octane.executeCustomRequest(
       `${this.ANALYTICS_WORKSPACE_CI_INTERNAL_API_URL}/github_feature_toggles`,
       Octane.operationTypes.get
     );
@@ -263,7 +273,7 @@ export default class OctaneClient {
       namesQry.length <= 3000 && qry.and(namesQry);
     }
 
-    const scmRepoId = await this.getScmRepositoryId(this._config.repoUrl);
+    const scmRepoId = await this.getScmRepositoryId(config.repoUrl);
     const qry1 = Query.field(SCM_REPOSITORY).equal(Query.field(ID).equal(scmRepoId));
     if (linkedToScmRepo) {
       qry = qry.and(qry1);
@@ -307,14 +317,14 @@ export default class OctaneClient {
       .and(Query.field(SUBTYPE).equal(MODEL_FOLDER))
       .build();
 
-    const res = await this._octane.get(MODEL_ITEMS).query(qry).fields(...["id", "name"]).limit(1).execute();
+    const res = await this.octane.get(MODEL_ITEMS).query(qry).fields(...["id", "name"]).limit(1).execute();
     return res?.data?.length ? res.data[0] : null;
   }
 
   public static getGitMirrorFolder = async (): Promise<BaseFolder | null> => {
     this._logger.debug(`getGitMirrorFolder: ...`);
     const qry = Query.field(LOGICAL_NAME).equal("mbt.discovery.unit.default_folder_name").build();
-    const res = await this._octane.get(MODEL_ITEMS).query(qry).limit(1).execute();
+    const res = await this.octane.get(MODEL_ITEMS).query(qry).limit(1).execute();
     return res?.data?.length ? res.data[0] : null;
   }
 
@@ -407,7 +417,7 @@ export default class OctaneClient {
   private static getScmRepositoryId = async (repoURL: string): Promise<number> => {
     this._logger.debug(`getScmRepositoryId: url=[${repoURL}] ...`);
     const scmRepoQuery = Query.field('url').equal(escapeQueryVal(repoURL)).build();
-    const res = await this._octane.get('scm_repository_roots').fields(ID).query(scmRepoQuery).limit(1).execute();
+    const res = await this.octane.get('scm_repository_roots').fields(ID).query(scmRepoQuery).limit(1).execute();
     if (!res || !res.total_count || !res.data.length) {
       throw new Error(`SCM Repository not found.`);
     }
@@ -429,9 +439,9 @@ export default class OctaneClient {
     this._logger.debug(`updatePluginVersion: plugin_version=${ver} ...`);
     const querystring = require('querystring');
     const sdk = '';
-    const client_id = this._config.octaneClientId;
-    const selfUrl = querystring.escape(this._config.repoUrl);
-    await this._octane.executeCustomRequest(
+    const client_id = config.octaneClientId;
+    const selfUrl = querystring.escape(config.repoUrl);
+    await this.octane.executeCustomRequest(
       `${this.ANALYTICS_CI_INTERNAL_API_URL}/servers/${instanceId}/tasks?self-type=${this.GITHUB_ACTIONS}&api-version=1&sdk-version=${sdk}&plugin-version=${ver}&self-url=${selfUrl}&client-id=${client_id}&client-server-user=`,
       Octane.operationTypes.get
     );
@@ -440,7 +450,7 @@ export default class OctaneClient {
   public static getMbtTestSuiteData = async (suiteRunId: number): Promise<Map<number, MbtTestData>> => {
     const url = `${this.CI_API_URL}/suite_runs/${suiteRunId}/get_suite_data`;
     this._logger.debug(`getMbtTestSuiteData: GET ${url} ...`);
-    const res: { [key: string]: string } = await this._octane.executeCustomRequest(url, Octane.operationTypes.get);
+    const res: { [key: string]: string } = await this.octane.executeCustomRequest(url, Octane.operationTypes.get);
     this._logger.debug("getMbtTestSuiteData:", res);
     const decodedMap = new Map<number, MbtTestData>();
 
@@ -467,7 +477,7 @@ export default class OctaneClient {
       .and(Query.field('ci_server').equal(Query.field('id').equal(ciServer.id)))
       .build();
 
-    const res = await this._octane
+    const res = await this.octane
       .get('ci_jobs')
       .fields('id,ci_id,name,ci_server{name,instance_id}')
       .query(jobQuery)
@@ -494,7 +504,7 @@ export default class OctaneClient {
       branch: ciJob.branchName
     };
 
-    const res = await this._octane.create('ci_jobs', ciJobToCreate).fields('id,ci_id,name,ci_server{name,instance_id}').execute();
+    const res = await this.octane.create('ci_jobs', ciJobToCreate).fields('id,ci_id,name,ci_server{name,instance_id}').execute();
 
     if (!res || !res.total_count || !res.data.length) {
       throw Error('Could not create the CI job entity.');
@@ -511,7 +521,7 @@ export default class OctaneClient {
     let go = false;
     do {
       try {
-        const res = await this._octane.get(collectionName).query(qry).fields(...fields).offset(entities.length).limit(MAX_LIMIT).orderBy("id").execute();
+        const res = await this.octane.get(collectionName).query(qry).fields(...fields).offset(entities.length).limit(MAX_LIMIT).orderBy("id").execute();
         go = res.total_count === MAX_LIMIT && res.data?.length === MAX_LIMIT;
         res.data?.length && entities.push(...res.data);
       } catch (error: any) {
@@ -528,7 +538,7 @@ export default class OctaneClient {
     const MAX_LIMIT = 100;
     const partitions: T[][] = this.partition(entries, MAX_LIMIT);
     for (const entities of partitions) {
-      const res = await this._octane.create(collectionName, entities).fields(...fields).execute();
+      const res = await this.octane.create(collectionName, entities).fields(...fields).execute();
       res.data?.length && results.push(...res.data); // TODO debug to see if res or res.data contains the content
     }
     return results;
@@ -540,7 +550,7 @@ export default class OctaneClient {
     const MAX_LIMIT = 100;
     const partitions: T[][] = this.partition(entries, MAX_LIMIT);
     for (const entities of partitions) {
-      const res = await this._octane.updateBulk(collectionName, entities).fields(...fields).execute();
+      const res = await this.octane.updateBulk(collectionName, entities).fields(...fields).execute();
       res.data?.length && results.push(...res.data); // TODO debug to see if res or res.data contains the content
     }
     return results;

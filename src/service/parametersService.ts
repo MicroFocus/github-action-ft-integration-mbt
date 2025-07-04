@@ -35,25 +35,15 @@ import { Logger } from '../utils/logger';
 import { globby } from 'globby';
 import yaml from 'yaml';
 
-const LOGGER: Logger = new Logger('parametersService');
+const logger: Logger = new Logger('parametersService');
 
 const LOGS_DIR = 'logs';
 const LOG_FILES_PATTERN = '*.txt';
 
-const getParamsFromConfig = async (
-  owner: string,
-  repo: string,
-  workflowFileName: string,
-  branchName?: string
-): Promise<CiParam[]> => {
+const getParamsFromConfig = async (workflowFileName: string, branchName?: string): Promise<CiParam[]> => {
   let configParameters: CiParam[] = [];
 
-  const content = await getWorkflowFileContent(
-    owner,
-    repo,
-    workflowFileName,
-    branchName
-  );
+  const content = await getWorkflowFileContent(workflowFileName, branchName);
   if (!content) {
     return configParameters;
   }
@@ -63,17 +53,11 @@ const getParamsFromConfig = async (
   return configParameters;
 };
 
-const getParametersFromLogs = async (
-  owner: string,
-  repo: string,
-  workflowRunId: number
-): Promise<CiParam[]> => {
+const getParametersFromLogs = async (workflowRunId: number): Promise<CiParam[]> => {
   let executionParameters: CiParam[] = [];
   const logsDestination = `${process.cwd()}/${LOGS_DIR}`;
 
   const logFiles = await getWorkflowLogs(
-    owner,
-    repo,
     workflowRunId,
     logsDestination
   );
@@ -94,18 +78,9 @@ const getParametersFromLogs = async (
   return executionParameters;
 };
 
-const getWorkflowLogs = async (
-  owner: string,
-  repo: string,
-  workflowRunId: number,
-  logsDestination: string
-): Promise<string[] | undefined> => {
+const getWorkflowLogs = async (workflowRunId: number, logsDestination: string): Promise<string[] | undefined> => {
   const logsFileName = `${LOGS_DIR}/workflow_logs.zip`;
-  const logsArchiveUrl = await GitHubClient.getDownloadLogsUrl(
-    owner,
-    repo,
-    workflowRunId
-  );
+  const logsArchiveUrl = await GitHubClient.getDownloadLogsUrl(workflowRunId);
 
   if (!logsArchiveUrl) {
     return undefined;
@@ -115,9 +90,7 @@ const getWorkflowLogs = async (
   const logsZipBytes = await response.arrayBuffer();
 
   if (!fsExtra.existsSync(LOGS_DIR)) {
-    LOGGER.debug(
-      `Creating a directory for log files with {path='${LOGS_DIR}'}...`
-    );
+    logger.debug(`Creating a directory for log files with {path='${LOGS_DIR}'}...`);
     fsExtra.mkdirSync(LOGS_DIR);
   }
 
@@ -130,36 +103,26 @@ const getWorkflowLogs = async (
 
   const logFiles = await globby(LOG_FILES_PATTERN, { cwd: logsDestination });
 
-  LOGGER.info(
-    `Found ${logFiles.length} log files according to pattern '${LOG_FILES_PATTERN}'.`
-  );
-  LOGGER.trace(`Search path: '${logsDestination}'`);
+  logger.info(`Found ${logFiles.length} log files according to pattern '${LOG_FILES_PATTERN}'.`);
+  logger.trace(`Search path: '${logsDestination}'`);
 
   return logFiles;
 };
 
-const parseLogsToCiParameters = (
-  logFiles: string[],
-  logsDestination: string
-): string | undefined => {
-  const datePattern =
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z execution_parameter:: .*/;
-  const partToReplace =
-    /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z execution_parameter:: /;
+const parseLogsToCiParameters = (logFiles: string[], logsDestination: string): string | undefined => {
+  const datePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z execution_parameter:: .*/;
+  const partToReplace = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z execution_parameter:: /;
   let executionParameters = undefined;
 
-  LOGGER.info('Parsing and sending the parameters to OpenText SDP / SDM...');
+  logger.info('Parsing and sending the parameters to OpenText SDP / SDM...');
   for (const logFile of logFiles) {
-    const fileContent = fsExtra.readFileSync(
-      `${logsDestination}/${logFile}`,
-      'utf-8'
-    );
+    const fileContent = fsExtra.readFileSync(`${logsDestination}/${logFile}`,'utf-8');
 
     const lines = fileContent.split('\n');
     for (const line of lines) {
       if (datePattern.test(line)) {
         executionParameters = line.replace(partToReplace, '');
-        LOGGER.debug(`Found execution parameters: ${executionParameters}`);
+        logger.debug(`Found execution parameters: ${executionParameters}`);
         break;
       }
     }
@@ -179,8 +142,7 @@ const deserializeParameters = (serializedParameters: string): CiParam[] => {
   const parsedParameters = JSON.parse(serializedParameters);
 
   for (const [key, value] of Object.entries(parsedParameters)) {
-    const stringValue =
-      typeof value === 'object' ? JSON.stringify(value) : String(value);
+    const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
     parameters.push({
       name: key,
       value: String(stringValue),
@@ -189,34 +151,28 @@ const deserializeParameters = (serializedParameters: string): CiParam[] => {
       //description: '',
       //type: 'string'
     });
-    LOGGER.debug(
-      `Found parameter in log files with {name='${key}', value='${stringValue}'}.`
-    );
+    logger.debug(`Found parameter in log files with {name='${key}', value='${stringValue}'}.`);
   }
 
   return parameters;
 };
 
 const getWorkflowFileContent = async (
-  owner: string,
-  repo: string,
   workflowFileName: string,
   branchName?: string
 ): Promise<string | undefined> => {
   const fileContent = await GitHubClient.getWorkflowFile(
-    owner,
-    repo,
     workflowFileName,
     branchName
   );
   if (fileContent.encoding !== 'base64') {
-    LOGGER.error(
+    logger.error(
       `The content of the workflow's configuration file has an unknown encoding: ${fileContent.encoding}`
     );
     return undefined;
   }
 
-  LOGGER.debug(`Decoding the content of the workflow's configuration file...`);
+  logger.debug(`Decoding the content of the workflow's configuration file...`);
   let singleLineContent = fileContent.content.replace(/\n/g, '');
   let decodedContent = Buffer.from(singleLineContent, 'base64').toString(
     'utf-8'
@@ -262,7 +218,7 @@ const parseYamlToCiParameters = (yamlContent: string): CiParam[] => {
       //type: 'string'
     };
     ciParameters.push(ciParameter);
-    LOGGER.debug(
+    logger.debug(
       `Found parameter in configuration file with ${JSON.stringify(ciParameter)}.`
     );
   }

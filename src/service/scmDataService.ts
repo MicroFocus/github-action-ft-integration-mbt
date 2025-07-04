@@ -36,25 +36,15 @@ import ScmCommitChange from '../dto/octane/scm/ScmCommitChange';
 import ScmData from '../dto/octane/scm/ScmData';
 import ScmRepository from '../dto/octane/scm/ScmRepository';
 
-const collectSCMData = async (
-  event: ActionsEvent,
-  owner: string,
-  repo: string,
-  since: Date
-): Promise<ScmData | undefined> => {
+const collectSCMData = async (event: ActionsEvent, since: Date): Promise<ScmData | undefined> => {
   let scmData;
   const branch = event.workflow_run?.head_branch || '';
 
-  const commitShas = await GitHubClient.getCommitIds(
-    owner,
-    repo,
-    branch,
-    since
-  );
+  const commitShas = await GitHubClient.getCommitIds(branch, since);
 
   const gitHubCommits = [];
   for (const commitSha of commitShas) {
-    gitHubCommits.push(await GitHubClient.getCommit(owner, repo, commitSha));
+    gitHubCommits.push(await GitHubClient.getCommit(commitSha));
   }
 
   if (gitHubCommits.length > 0) {
@@ -64,11 +54,7 @@ const collectSCMData = async (
   return scmData;
 };
 
-const getSCMData = async (
-  event: ActionsEvent,
-  branch: string,
-  gitHubCommits: Commit[]
-): Promise<ScmData> => {
+const getSCMData = async (event: ActionsEvent, branch: string,gitHubCommits: Commit[]): Promise<ScmData> => {
   const repoUrl = event.repository?.html_url;
 
   if (!repoUrl) {
@@ -83,15 +69,10 @@ const getSCMData = async (
 
   const commits = mapGitHubCommitsToOctaneCommits(gitHubCommits);
 
-  return {
-    repository,
-    commits
-  };
+  return { repository, commits };
 };
 
-const mapGitHubCommitsToOctaneCommits = (
-  gitHubCommits: Commit[]
-): ScmCommit[] => {
+const mapGitHubCommitsToOctaneCommits = (gitHubCommits: Commit[]): ScmCommit[] => {
   return gitHubCommits.map(commit => {
     if (!commit.commit.author) {
       throw new Error('Commit has no author!');
