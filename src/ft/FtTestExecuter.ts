@@ -5,6 +5,7 @@ import { Logger } from '../utils/logger';
 import { ExitCode } from './ExitCode';
 import FTL from './FTL';
 import { checkFileExists, checkReadWriteAccess, escapePropVal, getTimestamp } from '../utils/utils';
+import { config } from '../config/config';
 
 const _logger = new Logger('FtTestExecuter');
 
@@ -37,8 +38,11 @@ export default class FtTestExecuter {
       resultsFilename: escapePropVal(resFullPath)
     };
 
-    //TODO add Mobile props
-
+    if (config.digitalLabUrl && config.digitalLabExecToken) {
+      props["MobileHostAddress"] = config.digitalLabUrl;
+      props["MobileExecToken"] = config.digitalLabExecToken;
+      // TODO props["MobileExecDescription"] = `${config.mobileExecDescription} Test: ${testName}`;
+    }
     try {
       await fs.writeFile(propsFullPath, Object.entries(props).map(([k, v]) => `${k}=${v}`).join('\n'));
     } catch (error: any) {

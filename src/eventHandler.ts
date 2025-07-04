@@ -54,13 +54,14 @@ import { MbtTestInfo } from './mbt/MbtTestData';
 import MbtPreTestExecuter from './mbt/MbtPreTestExecuter';
 import { ExitCode } from './ft/ExitCode';
 import FtTestExecuter from './ft/FtTestExecuter';
-import { Result } from './dto/octane/events/CiTypes';
+import { CiCausesType, Result } from './dto/octane/events/CiTypes';
 
 const logger: Logger = new Logger('eventHandler');
 const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId', 'testsToRun'];
 
 export const handleCurrentEvent = async (): Promise<void> => {
   logger.info('BEGIN handleEvent ...');
+  const startTime = new Date().getTime();
 
   if (config.logLevel === 2) {
     for (const [key, value] of Object.entries(process.env)) {
@@ -71,16 +72,16 @@ export const handleCurrentEvent = async (): Promise<void> => {
   }
 
   const event: ActionsEvent = context.payload;
-  const eventName = context.eventName;
+  const eventName = context.eventName ?? event.name;
 
   logger.debug("context:", context);
 
-  const eventType = getEventType(event?.action || eventName);
+  const eventType = getEventType(eventName);
   if (eventType === ActionsEventType.UNKNOWN_EVENT) {
-    logger.info('Unknown event type');
+    logger.error('Unknown event type');
     return;
   }
-  logger.info(`eventType = ${event?.action || eventName}`);
+  logger.info(`eventType = ${eventName}`);
 
   let workflowPath: string | undefined;
   if (eventType === ActionsEventType.PUSH) {
@@ -92,13 +93,11 @@ export const handleCurrentEvent = async (): Promise<void> => {
   //const workflowName = event.workflow?.name;
   const ref: string | undefined = event.ref;
   let branch: string | undefined;
-
   if (ref && ref.startsWith('refs/heads/')) {
-    branch = ref.replace('refs/heads/', '');
+    branch = ref.slice(11);  // 'refs/heads/' has 11 characters
   } else {
-    branch = event.workflow_run?.head_branch; // Fallback for other event types
+    branch = event.repository?.default_branch ?? event.repository?.master_branch;
   }
-
   if (!branch) {
     throw new Error('Could not determine branch name!');
   }
@@ -115,7 +114,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
   logger.info(`Testing tool type: ${config.testingTool.toUpperCase()}`);
   const discovery = new Discovery(workDir);
   switch (eventType) {
-    case ActionsEventType.WORKFLOW_RUN:
+    case ActionsEventType.WORKFLOW_DISPATCH:
       const defaultParams = await getParamsFromConfig(workflowFileName, branch);
       const inputs = context.payload.inputs;
       logger.debug(`Input params: ${JSON.stringify(inputs, null, 0)}`);
@@ -123,8 +122,8 @@ export const handleCurrentEvent = async (): Promise<void> => {
         const defaults: Record<string, string> = Object.fromEntries(defaultParams.map(param => [param.name, param.defaultValue ?? ""]));
         const wfis: WorkflowInputs = { executionId: inputs.executionId ?? '', suiteId: inputs.suiteId ?? '', suiteRunId: inputs.suiteRunId ?? '', testsToRun: inputs.testsToRun ?? '' };
         if (hasNoEmptyOrDefaultValue(wfis, defaults)) {
-          const exitCode = await handleExecutorEvent(event, defaultParams, wfis, branch, workflowFileName);
-
+          const exitCode = await handleExecutorEvent(defaultParams, wfis);
+          //TODO use exitCode
           break;
         } else {
           logger.debug(`Continue with discovery / sync ...`);
@@ -193,73 +192,63 @@ export const handleCurrentEvent = async (): Promise<void> => {
   }
 
   logger.info('END handleEvent ...');
+  // EOD of handleCurrentEvent function
 
+  async function handleExecutorEvent(defaultParams: CiParam[], wfis: WorkflowInputs): Promise<ExitCode> {
+    const workflowRunId = context.runId;
+    const workflowRunNum = context.runNumber;
+    const workDir = process.cwd();
+    logger.debug(`handleExecutorEvent: ...`);
+    const execParams = generateExecParams(defaultParams, wfis);
+    const { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId } = getCiPredefinedVals(branch!, workflowFileName);
+    const ciServer = await OctaneClient.getCiServer(ciServerInstanceId, ciServerName);
+    if (!ciServer) {
+      logger.error(`handleExecutorEvent: Could not find CI server with instanceId: ${ciServerInstanceId}`);
+      return ExitCode.Aborted;
+    };
+    // TODO updatePluginVersionIfNeeded ?
+    const startEventCauses = [
+      {
+        buildCiId: `${workflowRunId}`,
+        project: ciId,
+        type: CiCausesType.USER,
+        userId: context.actor, // or process.env.GITHUB_ACTOR
+        userName: context.actor
+      }
+    ];
+
+    await sendExecutorStartEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, startEventCauses, execParams, ciServerInstanceId);
+
+    const testDataMap = TestParamsParser.parseTestData(wfis.testsToRun);
+    const mbtTestSuiteData = await OctaneClient.getMbtTestSuiteData(parseInt(wfis.suiteRunId));
+    const mbtTestInfos: MbtTestInfo[] = [];
+    const repoFolderPath = workDir;
+
+    for (const [runId, mbtTestData] of mbtTestSuiteData.entries()) {
+      const mbtTestInfo = MbtDataPrepConverter.buildMbtTestInfo(repoFolderPath, runId, mbtTestData, testDataMap);
+      mbtTestInfos.push(mbtTestInfo);
+      logger.debug(JSON.stringify(mbtTestInfo, null, 2));
+    };
+    let exitCode = await MbtPreTestExecuter.preProcess(mbtTestInfos);
+    if (exitCode === ExitCode.Passed) {
+      exitCode = await FtTestExecuter.preProcess(mbtTestInfos);
+    } else {
+      logger.error(`handleExecutorEvent: Failed to convert MBT tests.`);
+      return ExitCode.Aborted;
+    };
+
+    // TODO check TestResultServiceImpl.publishResultsToOctane and updateExecutionFlowDetailParameter
+    const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
+    //TODO
+    const isResultsSent = false;
+    // send JUNIT results to Octane
+
+    //TODO need causes too?
+    await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, execParams, ciServerInstanceId, isResultsSent, res);
+    logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
+    return exitCode;
+  }
 };
-
-const handleExecutorEvent = async (event: ActionsEvent, defaultParams: CiParam[], wfis: WorkflowInputs, branch: string, workflowFileName: string): Promise<ExitCode> => {
-  const startTime = event.workflow_run?.run_started_at ?
-    new Date(event.workflow_run.run_started_at).getTime() :
-    new Date().getTime();
-  const workflowRunId = event.workflow_run?.id ?? 0;
-  const workflowRunNum = event.workflow_run?.run_number ?? 0;
-  const workDir = process.cwd();
-  logger.debug(`handleExecutorEvent: ...`);
-  const execParams = generateExecParams(defaultParams, wfis);
-  const { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId } = getCiPredefinedVals(branch, workflowFileName);
-  const ciServer = await OctaneClient.getCiServer(ciServerInstanceId, ciServerName);
-  if (!ciServer) {
-    logger.error(`handleExecutorEvent: Could not find CI server with instanceId: ${ciServerInstanceId}`);
-    return ExitCode.Aborted;
-  };
-  // TODO updatePluginVersionIfNeeded ?
-  const login = event.workflow_run?.triggering_actor.login;
-  //TODO is startEventCauses really needed?
-/*  const startEventCauses = [
-    {
-      buildCiId: `${workflowRunId}`,
-      project: ciId,
-      type: CiCausesType.UPSTREAM,
-      userId: login,
-      userName: login,
-      causes: [
-        {
-          buildCiId: `${workflowRunId}`,
-          project: parentCiId,
-          type: convertRootCauseType(event.workflow_run?.event),
-          userId: login,
-          userName: login
-        }
-      ]
-    }
-  ];*/
-
-  await sendExecutorStartEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch, startTime, ciServer.url, execParams, ciServerInstanceId);
-
-  const testDataMap = TestParamsParser.parseTestData(wfis.testsToRun);
-  const mbtTestSuiteData = await OctaneClient.getMbtTestSuiteData(parseInt(wfis.suiteRunId));
-  const mbtTestInfos: MbtTestInfo[] = [];
-  const repoFolderPath = workDir;
-
-  for (const [runId, mbtTestData] of mbtTestSuiteData.entries()) {
-    const mbtTestInfo = MbtDataPrepConverter.buildMbtTestInfo(repoFolderPath, runId, mbtTestData, testDataMap);
-    mbtTestInfos.push(mbtTestInfo);
-    logger.debug(JSON.stringify(mbtTestInfo, null, 2));
-  };
-  let exitCode = await MbtPreTestExecuter.preProcess(mbtTestInfos);
-  if (exitCode === ExitCode.Passed) {
-    exitCode = await FtTestExecuter.preProcess(mbtTestInfos);
-  } else {
-    logger.error(`handleExecutorEvent: Failed to convert MBT tests.`);
-    return ExitCode.Aborted;
-  };
-
-  // TODO check TestResultServiceImpl.publishResultsToOctane and updateExecutionFlowDetailParameter
-  const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
-  //TODO
-  //await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch, startTime, ciServer.url, execParams, ciServerInstanceId, res);
-
-  return exitCode;
-}
 
 const isMinSyncIntervalElapsed = async (minSyncInterval: number) => {
   const lastSyncedTimestamp = await getSyncedTimestamp();

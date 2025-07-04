@@ -116,7 +116,7 @@ const getNotFinishedRuns = async (
 const getEventType = (event: string | null | undefined): ActionsEventType => {
   switch (event) {
     case 'workflow_dispatch':
-      return ActionsEventType.WORKFLOW_RUN; 
+      return ActionsEventType.WORKFLOW_DISPATCH; 
     case 'push':
       return ActionsEventType.PUSH; 
     case 'requested':

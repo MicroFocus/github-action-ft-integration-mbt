@@ -29,6 +29,7 @@
 
 import OctaneClient from '../client/octaneClient';
 import CiEvent from '../dto/octane/events/CiEvent';
+import CiEventCause from '../dto/octane/events/CiEventCause';
 import CiParam from '../dto/octane/events/CiParam';
 import {
   CiEventType,
@@ -60,7 +61,8 @@ const sendExecutorStartEvent = async (
   branch: string,
   startTime: number,
   baseUrl: string,
-  params: CiParam[],
+  causes: CiEventCause[],
+  parameters: CiParam[],
   ciServerInstanceId: string
 ): Promise<void> => {
   const evt: CiEvent = {
@@ -72,8 +74,9 @@ const sendExecutorStartEvent = async (
     projectDisplayName: executorName,
     startTime,
     branch,
-    parameters: params,
     phaseType: PhaseType.INTERNAL,
+    causes,
+    parameters,
     skipValidation: true
   };
 
@@ -91,6 +94,7 @@ const sendExecutorFinishEvent = async (
   baseUrl: string,
   params: CiParam[],
   ciServerInstanceId: string,
+  testResultExpected: boolean,
   result: Result
 ): Promise<void> => {
   const evt: CiEvent = {
@@ -103,13 +107,13 @@ const sendExecutorFinishEvent = async (
     startTime,
     branch,
     parameters: params,
-    //phaseType: PhaseType.INTERNAL,
+    phaseType: PhaseType.INTERNAL,
     duration: (new Date().getTime() - startTime),
     skipValidation: true,
-    testResultExpected: true,
+    testResultExpected,
     result
   };
-
+  logger.debug(`sendExecutorFinishEvent: `, evt);
   await OctaneClient.sendEvents([evt], ciServerInstanceId, baseUrl);
 };
 

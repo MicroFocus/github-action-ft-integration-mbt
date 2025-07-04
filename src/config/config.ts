@@ -36,6 +36,8 @@ interface Config {
   octaneWorkspace: number;
   octaneClientId: string;
   octaneClientSecret: string;
+  digitalLabUrl?: string; // TODO find a better prefix
+  digitalLabExecToken?: string; // TODO find a better prefix
   githubToken: string;
   testingTool: string;
   minSyncInterval: number;
@@ -61,6 +63,8 @@ try {
     octaneWorkspace: Number.parseInt(getInput('octaneWorkspace').trim()),
     octaneClientId: getInput('octaneClientId').trim(),
     octaneClientSecret: getInput('octaneClientSecret').trim(),
+    digitalLabUrl: getInput('digitalLabUrl').trim(),
+    digitalLabExecToken: getInput('digitalLabExecToken').trim(),
     githubToken: getInput('githubToken').trim(),
     testingTool: "mbt",//getInput('testingToolType').toLowerCase().trim(),
     minSyncInterval: Number.parseInt(getInput('minSyncInterval').trim()),

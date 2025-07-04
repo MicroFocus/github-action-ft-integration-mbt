@@ -1,5 +1,10 @@
 {
-  "action": "workflow_dispatch",
+  "name": "workflow_dispatch",
+  "repository": {
+    "full_name": "dorin7bogdan/ufto-tests",
+    "id": 942767934,
+    "default_branch": "main"
+  },
   "workflow_run": {
     "head_branch": "main",
     "id": 123456,

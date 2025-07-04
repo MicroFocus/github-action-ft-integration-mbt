@@ -16,6 +16,14 @@ inputs:
   octaneClientSecret:
     description: 'OpenText SDP / SDM API Access Client Secret'
     required: true
+  digitalLabUrl:
+    description: 'OpenText Functional testing Lab Server URL, format: http(s)://{hostname-or-ip}[:{port}]'
+    required: false
+    default: ""
+  digitalLabExecToken:
+    description: 'OpenText Functional testing Lab Exec Token'
+    required: false
+    default: ""
   gitHubToken:
     description: 'GitHub PAT'
     required: true

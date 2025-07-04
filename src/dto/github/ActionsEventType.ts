@@ -37,7 +37,7 @@ const enum ActionsEventType {
   PULL_REQUEST_EDITED = 'edited',
   PULL_REQUEST_REOPENED = 'reopened',
   UNKNOWN_EVENT = 'unknown',
-  WORKFLOW_RUN = 'workflow_run'
+  WORKFLOW_DISPATCH = 'workflow_dispatch'
 }
 
 export default ActionsEventType;

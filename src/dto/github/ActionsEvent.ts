@@ -35,6 +35,7 @@ import Workflow from './Workflow';
 
 interface GitHubRepository extends PayloadRepository {
   id?: string;
+  master_branch?: string;
 }
 
 export default interface ActionsEvent extends WebhookPayload {
