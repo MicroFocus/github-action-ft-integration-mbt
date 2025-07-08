@@ -55,9 +55,11 @@ import MbtPreTestExecuter from './mbt/MbtPreTestExecuter';
 import { ExitCode } from './ft/ExitCode';
 import FtTestExecuter from './ft/FtTestExecuter';
 import { CiCausesType, Result } from './dto/octane/events/CiTypes';
+import { convertJUnitXMLToOctaneXML } from '@microfocus/alm-octane-test-result-convertion';
+import { sendJUnitTestResults } from './service/testResultsService';
 
 const logger: Logger = new Logger('eventHandler');
-const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId', 'testsToRun'];
+const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId'];
 
 export const handleCurrentEvent = async (): Promise<void> => {
   logger.info('BEGIN handleEvent ...');
@@ -83,11 +85,11 @@ export const handleCurrentEvent = async (): Promise<void> => {
   }
   logger.info(`eventType = ${eventName}`);
 
-  let workflowPath: string | undefined;
+  let ymlFullPath: string | undefined;
   if (eventType === ActionsEventType.PUSH) {
-    workflowPath = await GitHubClient.getWorkflowPath(event.after!);
+    ymlFullPath = await GitHubClient.getWorkflowPath(event.after!);
   } else {
-    workflowPath = (typeof event.workflow === 'string') ? event.workflow : event.workflow?.path;
+    ymlFullPath = (typeof event.workflow === 'string') ? event.workflow : event.workflow?.path;
   }
 
   //const workflowName = event.workflow?.name;
@@ -102,10 +104,10 @@ export const handleCurrentEvent = async (): Promise<void> => {
     throw new Error('Could not determine branch name!');
   }
 
-  if (!workflowPath) {
+  if (!ymlFullPath) {
     throw new Error('Event should contain workflow file path!');
   }
-  const workflowFileName = path.basename(workflowPath);
+  const ymlFileName = path.basename(ymlFullPath);
 
   logger.info(`Current repository URL: ${config.repoUrl}`);
 
@@ -115,13 +117,17 @@ export const handleCurrentEvent = async (): Promise<void> => {
   const discovery = new Discovery(workDir);
   switch (eventType) {
     case ActionsEventType.WORKFLOW_DISPATCH:
-      const defaultParams = await getParamsFromConfig(workflowFileName, branch);
+      const defaultParams = await getParamsFromConfig(ymlFileName, branch);
       const inputs = context.payload.inputs;
       logger.debug(`Input params: ${JSON.stringify(inputs, null, 0)}`);
       if (inputs && hasExecutorKeys(defaultParams)) {
         const defaults: Record<string, string> = Object.fromEntries(defaultParams.map(param => [param.name, param.defaultValue ?? ""]));
         const wfis: WorkflowInputs = { executionId: inputs.executionId ?? '', suiteId: inputs.suiteId ?? '', suiteRunId: inputs.suiteRunId ?? '', testsToRun: inputs.testsToRun ?? '' };
         if (hasNoEmptyOrDefaultValue(wfis, defaults)) {
+          const testsToRun = wfis.testsToRun.trim();
+          if (!testsToRun || testsToRun === defaults["testsToRun"]) {
+            throw new Error(`Invalid or missing tests to run specified in the workflow`);
+          }
           const exitCode = await handleExecutorEvent(defaultParams, wfis);
           //TODO use exitCode
           break;
@@ -180,7 +186,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
         }
       }
 
-      await doTestSync(discoveryRes, workflowFileName, branch!);
+      await doTestSync(discoveryRes, ymlFileName, branch!);
       const newCommit = discoveryRes.getNewCommit();
       if (newCommit !== oldCommit) {
         await saveSyncedCommit(newCommit);
@@ -200,7 +206,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
     const workDir = process.cwd();
     logger.debug(`handleExecutorEvent: ...`);
     const execParams = generateExecParams(defaultParams, wfis);
-    const { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId } = getCiPredefinedVals(branch!, workflowFileName);
+    const { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId } = getCiPredefinedVals(branch!, ymlFileName);
     const ciServer = await OctaneClient.getCiServer(ciServerInstanceId, ciServerName);
     if (!ciServer) {
       logger.error(`handleExecutorEvent: Could not find CI server with instanceId: ${ciServerInstanceId}`);
@@ -229,21 +235,21 @@ export const handleCurrentEvent = async (): Promise<void> => {
       mbtTestInfos.push(mbtTestInfo);
       logger.debug(JSON.stringify(mbtTestInfo, null, 2));
     };
-    let exitCode = await MbtPreTestExecuter.preProcess(mbtTestInfos);
-    if (exitCode === ExitCode.Passed) {
-      exitCode = await FtTestExecuter.preProcess(mbtTestInfos);
+    const ok = await MbtPreTestExecuter.preProcess(mbtTestInfos);
+    let isResultsSent = false;
+    let exitCode = ExitCode.Aborted;
+    if (ok) {
+      let { code, resFullPath } = await FtTestExecuter.preProcess(mbtTestInfos);
+      exitCode = code;
+      await sendJUnitTestResults(workflowRunId, ciId, ciServerInstanceId, resFullPath);
+      isResultsSent = true;
     } else {
       logger.error(`handleExecutorEvent: Failed to convert MBT tests.`);
-      return ExitCode.Aborted;
     };
 
     // TODO check TestResultServiceImpl.publishResultsToOctane and updateExecutionFlowDetailParameter
     const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
-    //TODO
-    const isResultsSent = false;
-    // send JUNIT results to Octane
 
-    //TODO need causes too?
     await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, causes, execParams, ciServerInstanceId, isResultsSent, res);
     logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
     return exitCode;
@@ -257,8 +263,8 @@ const isMinSyncIntervalElapsed = async (minSyncInterval: number) => {
   return timeDiffMinutes >= minSyncInterval;
 }
 
-const doTestSync = async (discoveryRes: DiscoveryResult, workflowFileName: string, branch: string) => {
-  const { ciServerInstanceId, ciServerName, executorName, ciId } = getCiPredefinedVals(branch, workflowFileName);
+const doTestSync = async (discoveryRes: DiscoveryResult, ymlFileName: string, branch: string) => {
+  const { ciServerInstanceId, ciServerName, executorName, ciId } = getCiPredefinedVals(branch, ymlFileName);
 
   const ciServer = await OctaneClient.getOrCreateCiServer(ciServerInstanceId, ciServerName);
   const ciJob = await getOrCreateCiJob(executorName, ciId, ciServer, branch);
@@ -269,13 +275,13 @@ const doTestSync = async (discoveryRes: DiscoveryResult, workflowFileName: strin
   await dispatchDiscoveryResults(tr.id, tr.scm_repository.id, discoveryRes);
 }
 
-function getCiPredefinedVals(branch: string, workflowFileName: string) {
+function getCiPredefinedVals(branch: string, ymlFileName: string) {
+  const ymlFileNameWithoutExt = path.basename(ymlFileName, path.extname(ymlFileName));
   const ciServerInstanceId = `GHA-MBT-${config.owner}`;
   const ciServerName = `GHA-MBT-${config.owner}`;
-  const executorName = `GHA-MBT-${config.owner}.${config.repo}.${branch}.${workflowFileName}`;
-  const ciId = `${config.owner}/${config.repo}/${workflowFileName}/executor/${branch}`;
-  const parentCiId = `${config.owner}/${config.repo}/${workflowFileName}/executor`;
-
+  const executorName = `GHA-MBT-${config.owner}.${config.repo}.${branch}.${ymlFileNameWithoutExt}`;
+  const parentCiId = `${config.owner}/${config.repo}/${ymlFileName}/executor`;
+  const ciId = `${parentCiId}/${branch}`;
   return { ciServerInstanceId, ciServerName, executorName, ciId, parentCiId };
 }
 

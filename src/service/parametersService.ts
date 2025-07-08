@@ -27,18 +27,12 @@
  * limitations under the License.
  */
 
-import AdmZip from 'adm-zip';
-import fsExtra from 'fs-extra';
 import CiParam from '../dto/octane/events/CiParam';
 import GitHubClient from '../client/githubClient';
 import { Logger } from '../utils/logger';
-import { globby } from 'globby';
 import yaml from 'yaml';
 
 const logger: Logger = new Logger('parametersService');
-
-const LOGS_DIR = 'logs';
-const LOG_FILES_PATTERN = '*.txt';
 
 const getParamsFromConfig = async (workflowFileName: string, branchName?: string): Promise<CiParam[]> => {
   let configParameters: CiParam[] = [];
@@ -51,110 +45,6 @@ const getParamsFromConfig = async (workflowFileName: string, branchName?: string
   configParameters = parseYamlToCiParameters(content);
 
   return configParameters;
-};
-
-const getParametersFromLogs = async (workflowRunId: number): Promise<CiParam[]> => {
-  let executionParameters: CiParam[] = [];
-  const logsDestination = `${process.cwd()}/${LOGS_DIR}`;
-
-  const logFiles = await getWorkflowLogs(
-    workflowRunId,
-    logsDestination
-  );
-  if (!logFiles) {
-    return executionParameters;
-  }
-
-  const serializedParameters = parseLogsToCiParameters(
-    logFiles,
-    logsDestination
-  );
-  if (!serializedParameters) {
-    return executionParameters;
-  }
-
-  executionParameters = deserializeParameters(serializedParameters);
-
-  return executionParameters;
-};
-
-const getWorkflowLogs = async (workflowRunId: number, logsDestination: string): Promise<string[] | undefined> => {
-  const logsFileName = `${LOGS_DIR}/workflow_logs.zip`;
-  const logsArchiveUrl = await GitHubClient.getDownloadLogsUrl(workflowRunId);
-
-  if (!logsArchiveUrl) {
-    return undefined;
-  }
-
-  const response = await fetch(logsArchiveUrl);
-  const logsZipBytes = await response.arrayBuffer();
-
-  if (!fsExtra.existsSync(LOGS_DIR)) {
-    logger.debug(`Creating a directory for log files with {path='${LOGS_DIR}'}...`);
-    fsExtra.mkdirSync(LOGS_DIR);
-  }
-
-  fsExtra.writeFileSync(logsFileName, Buffer.from(logsZipBytes));
-
-  const zip = new AdmZip(logsFileName);
-  zip.extractAllTo(LOGS_DIR);
-
-  fsExtra.rmSync(logsFileName);
-
-  const logFiles = await globby(LOG_FILES_PATTERN, { cwd: logsDestination });
-
-  logger.info(`Found ${logFiles.length} log files according to pattern '${LOG_FILES_PATTERN}'.`);
-  logger.trace(`Search path: '${logsDestination}'`);
-
-  return logFiles;
-};
-
-const parseLogsToCiParameters = (logFiles: string[], logsDestination: string): string | undefined => {
-  const datePattern = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z execution_parameter:: .*/;
-  const partToReplace = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{7}Z execution_parameter:: /;
-  let executionParameters = undefined;
-
-  logger.info('Parsing and sending the parameters to OpenText SDP / SDM...');
-  for (const logFile of logFiles) {
-    const fileContent = fsExtra.readFileSync(`${logsDestination}/${logFile}`,'utf-8');
-
-    const lines = fileContent.split('\n');
-    for (const line of lines) {
-      if (datePattern.test(line)) {
-        executionParameters = line.replace(partToReplace, '');
-        logger.debug(`Found execution parameters: ${executionParameters}`);
-        break;
-      }
-    }
-
-    if (executionParameters) {
-      break;
-    }
-  }
-
-  fsExtra.emptyDirSync(LOGS_DIR);
-
-  return executionParameters;
-};
-
-const deserializeParameters = (serializedParameters: string): CiParam[] => {
-  const parameters: CiParam[] = [];
-  const parsedParameters = JSON.parse(serializedParameters);
-
-  for (const [key, value] of Object.entries(parsedParameters)) {
-    const stringValue = typeof value === 'object' ? JSON.stringify(value) : String(value);
-    parameters.push({
-      name: key,
-      value: String(stringValue),
-      defaultValue: ''
-      //choices: [],
-      //description: '',
-      //type: 'string'
-    });
-    logger.debug(`Found parameter in log files with {name='${key}', value='${stringValue}'}.`);
-  }
-
-  return parameters;
 };
 
 const getWorkflowFileContent = async (
@@ -226,4 +116,4 @@ const parseYamlToCiParameters = (yamlContent: string): CiParam[] => {
   return ciParameters;
 };
 
-export { getParamsFromConfig, getParametersFromLogs };
+export { getParamsFromConfig };

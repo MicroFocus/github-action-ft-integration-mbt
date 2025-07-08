@@ -11,18 +11,17 @@ import FTL from '../ft/FTL';
 const logger = new Logger('MbtPreTestExecuter');
 
 export default class MbtPreTestExecuter {
-  public static async preProcess(mbtTestInfos: MbtTestInfo[]): Promise<ExitCode> {
+  public static async preProcess(mbtTestInfos: MbtTestInfo[]): Promise<boolean> {
     logger.debug(`preProcess: mbtTestInfos.length=${mbtTestInfos.length} ...`);
     const mbtPropsFullPath = await this.createMbtPropsFile(mbtTestInfos);
     await checkFileExists(mbtPropsFullPath);
     const actionBinPath = await FTL.ensureToolExists();
     const exitCode = await FTL.runTool(actionBinPath, mbtPropsFullPath);
     logger.debug(`preProcess: exitCode=${exitCode}`);
-    return exitCode;
+    return exitCode === ExitCode.Passed;
   }
 
   private static async createMbtPropsFile(testInfos: MbtTestInfo[]): Promise<string> {
-    if (!testInfos.length) return '';
     logger.debug(`createMbtPropsFile: testInfos.length=${testInfos.length} ...`);
     const wsDir = process.env.RUNNER_WORKSPACE; // e.g., C:\GitHub_runner\_work\ufto-tests\
     if (!wsDir) {

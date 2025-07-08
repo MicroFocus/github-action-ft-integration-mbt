@@ -10,27 +10,28 @@ import { config } from '../config/config';
 const logger = new Logger('FtTestExecuter');
 
 export default class FtTestExecuter {
-  public static async preProcess(uftTestInfos: UftTestInfo[]): Promise<ExitCode> {
-    logger.debug(`preProcess: ...`);
-
-    const propsFullPath = await this.createPropsFile(uftTestInfos);
+  public static async preProcess(testInfos: UftTestInfo[]): Promise<{ code: ExitCode; resFullPath: string }> {
+    logger.debug(`preProcess: mbtTestInfos.length=${testInfos.length} ...`);
+    const wsPath = process.env.RUNNER_WORKSPACE!; // e.g., C:\GitHub_runner\_work\ufto-tests\
+    await checkReadWriteAccess(wsPath);
+    const suffix = getTimestamp();
+    const { propsFullPath, resFullPath } = await this.createPropsFile(wsPath, suffix, testInfos);
     await checkFileExists(propsFullPath);
     const actionBinPath = await FTL.ensureToolExists();
     const exitCode = await FTL.runTool(actionBinPath, propsFullPath);
     logger.debug(`preProcess: exitCode=${exitCode}`);
-    return exitCode;
+    return { code: exitCode, resFullPath: resFullPath };
   }
 
-  private static async createPropsFile(testInfos: UftTestInfo[]): Promise<string> {
-    if (!testInfos.length) return '';
-    const wsDir = process.env.RUNNER_WORKSPACE!; // e.g., C:\GitHub_runner\_work\ufto-tests\
-    const suffix = getTimestamp();
-    const propsFullPath = path.join(wsDir, `props_${suffix}.txt`);
-    logger.debug(`createPropsFile: [${propsFullPath}] ...`);
-    await checkReadWriteAccess(wsDir);
+  private static async createPropsFile(wsPath: string, suffix: string,
+    testInfos: UftTestInfo[]): Promise<{ propsFullPath: string, resFullPath: string }> {
 
-    const resFullPath = path.join(wsDir, `results_${suffix}.xml`);
-    const mtbxFullPath = await this.createMtbxFile(wsDir, suffix, testInfos);
+    const propsFullPath = path.join(wsPath, `props_${suffix}.txt`);
+    const resFullPath = path.join(wsPath, `results_${suffix}.xml`);
+    const mtbxFullPath = path.join(wsPath, `testsuite_${suffix}.mtbx`);
+
+    logger.debug(`createPropsFile: [${propsFullPath}] ...`);
+    await this.createMtbxFile(wsPath, mtbxFullPath, testInfos);
     await checkFileExists(mtbxFullPath);
     const props: { [key: string]: string } = {
       runType: FTL.FileSystem,
@@ -50,17 +51,16 @@ export default class FtTestExecuter {
       throw new Error('Failed when creating properties file');
     }
 
-    return propsFullPath;
+    return { propsFullPath, resFullPath };
   }
 
-  private static async createMtbxFile(dirPath: string, suffix: string, testInfos: UftTestInfo[]): Promise<string> {
-    const mtbxFullPath = path.join(dirPath, `test_suite_${suffix}.mtbx`);
+  private static async createMtbxFile(wsPath: string, mtbxFullPath: string, testInfos: UftTestInfo[]): Promise<string> {
     logger.debug(`createMtbxFile: [${mtbxFullPath}]`);
     let xml = "<Mtbx>\n";
     testInfos.map(async (testInfo, i) => {
       const idx = i + 1;
       const name = testInfo.testName;
-      const fullPath = path.join(dirPath, FTL._MBT, `_${idx}`, name);
+      const fullPath = path.join(wsPath, FTL._MBT, `_${idx}`, name);
       xml += `  <Test name="${name}" path="${fullPath}" />\n`;
     });
     xml += `</Mtbx>`;

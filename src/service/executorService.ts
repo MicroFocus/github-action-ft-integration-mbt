@@ -66,6 +66,7 @@ const sendExecutorStartEvent = async (
   parameters: CiParam[],
   ciServerInstanceId: string
 ): Promise<void> => {
+  logger.debug(`sendExecutorStartEvent: ...`);
   const evt: CiEvent = {
     buildCiId,
     eventType: CiEventType.STARTED,
@@ -99,6 +100,7 @@ const sendExecutorFinishEvent = async (
   testResultExpected: boolean,
   result: Result
 ): Promise<void> => {
+  logger.debug(`sendExecutorFinishEvent: ...`);
   const evt: CiEvent = {
     buildCiId: buildCiId,
     eventType: CiEventType.FINISHED,
