@@ -79734,9 +79734,9 @@ const sendTestResults = async (resFullPath, buildContext) => {
 };
 const sendJUnitTestResults = async (workflowRunId, jobId, serverId, resFullPath) => {
     logger.debug('sendJUnitTestResults: ...');
-    const buildContext = { server_id: serverId, build_id: `${workflowRunId}`, job_id: jobId, external_run_id: undefined };
     const resFileName = path.basename(resFullPath);
-    await sendTestResults(resFullPath, { ...buildContext, artifact_id: resFileName });
+    const buildContext = { server_id: serverId, build_id: `${workflowRunId}`, job_id: jobId, external_run_id: undefined, artifact_id: resFileName };
+    await sendTestResults(resFullPath, buildContext);
     logger.info('JUnit test results processed and sent successfully.');
 };
 exports.sendJUnitTestResults = sendJUnitTestResults;
