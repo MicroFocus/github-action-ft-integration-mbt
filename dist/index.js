@@ -78464,23 +78464,24 @@ const handleCurrentEvent = async () => {
         }
         ;
         const ok = await MbtPreTestExecuter_1.default.preProcess(mbtTestInfos);
-        let isResultsSent = false;
-        let exitCode = ExitCode_1.ExitCode.Aborted;
         if (ok) {
-            let { code, resFullPath } = await FtTestExecuter_1.default.preProcess(mbtTestInfos);
-            exitCode = code;
+            const { exitCode, resFullPath } = await FtTestExecuter_1.default.process(mbtTestInfos);
+            const res = (exitCode === ExitCode_1.ExitCode.Passed ? "success" /* Result.SUCCESS */ : (exitCode === ExitCode_1.ExitCode.Unstable ? "unstable" /* Result.UNSTABLE */ : "failure" /* Result.FAILURE */));
+            await sendFinishEvent(res);
             await (0, testResultsService_1.sendJUnitTestResults)(workflowRunId, ciId, ciServerInstanceId, resFullPath);
-            isResultsSent = true;
+            // TODO check TestResultServiceImpl.publishResultsToOctane
+            logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
+            return exitCode;
         }
         else {
-            logger.error(`handleExecutorEvent: Failed to convert MBT tests.`);
+            await sendFinishEvent("aborted" /* Result.ABORTED */);
+            logger.error(`handleExecutorEvent: Failed to convert MBT tests. ExitCode=${ExitCode_1.ExitCode.Aborted}`);
+            return ExitCode_1.ExitCode.Aborted;
         }
         ;
-        // TODO check TestResultServiceImpl.publishResultsToOctane and updateExecutionFlowDetailParameter
-        const res = (exitCode === ExitCode_1.ExitCode.Passed ? "success" /* Result.SUCCESS */ : (exitCode === ExitCode_1.ExitCode.Unstable ? "unstable" /* Result.UNSTABLE */ : "failure" /* Result.FAILURE */));
-        await (0, executorService_1.sendExecutorFinishEvent)(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch, startTime, ciServer.url, causes, execParams, ciServerInstanceId, isResultsSent, res);
-        logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
-        return exitCode;
+        async function sendFinishEvent(res) {
+            await (0, executorService_1.sendExecutorFinishEvent)(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch, startTime, ciServer?.url, causes, execParams, ciServerInstanceId, res);
+        }
     }
 };
 exports.handleCurrentEvent = handleCurrentEvent;
@@ -78744,8 +78745,8 @@ const utils_1 = __nccwpck_require__(35268);
 const config_1 = __nccwpck_require__(81122);
 const logger = new logger_1.Logger('FtTestExecuter');
 class FtTestExecuter {
-    static async preProcess(testInfos) {
-        logger.debug(`preProcess: mbtTestInfos.length=${testInfos.length} ...`);
+    static async process(testInfos) {
+        logger.debug(`process: mbtTestInfos.length=${testInfos.length} ...`);
         const wsPath = process.env.RUNNER_WORKSPACE; // e.g., C:\GitHub_runner\_work\ufto-tests\
         await (0, utils_1.checkReadWriteAccess)(wsPath);
         const suffix = (0, utils_1.getTimestamp)();
@@ -78753,8 +78754,8 @@ class FtTestExecuter {
         await (0, utils_1.checkFileExists)(propsFullPath);
         const actionBinPath = await FTL_1.default.ensureToolExists();
         const exitCode = await FTL_1.default.runTool(actionBinPath, propsFullPath);
-        logger.debug(`preProcess: exitCode=${exitCode}`);
-        return { code: exitCode, resFullPath: resFullPath };
+        logger.debug(`process: exitCode=${exitCode}`);
+        return { exitCode, resFullPath: resFullPath };
     }
     static async createPropsFile(wsPath, suffix, testInfos) {
         const propsFullPath = path.join(wsPath, `props_${suffix}.txt`);
@@ -79496,7 +79497,7 @@ const sendExecutorStartEvent = async (executorName, executorCiId, parentCiId, bu
     await octaneClient_1.default.sendEvent(evt, ciServerInstanceId, baseUrl);
 };
 exports.sendExecutorStartEvent = sendExecutorStartEvent;
-const sendExecutorFinishEvent = async (executorName, executorCiId, parentCiId, buildCiId, runNumber, branch, startTime, baseUrl, causes, params, ciServerInstanceId, testResultExpected, result) => {
+const sendExecutorFinishEvent = async (executorName, executorCiId, parentCiId, buildCiId, runNumber, branch, startTime, baseUrl, causes, params, ciServerInstanceId, result) => {
     logger.debug(`sendExecutorFinishEvent: ...`);
     const evt = {
         buildCiId: buildCiId,
@@ -79512,7 +79513,6 @@ const sendExecutorFinishEvent = async (executorName, executorCiId, parentCiId, b
         parameters: params,
         duration: (new Date().getTime() - startTime),
         skipValidation: true,
-        testResultExpected,
         result
     };
     await octaneClient_1.default.sendEvent(evt, ciServerInstanceId, baseUrl);
@@ -79718,12 +79718,6 @@ const octaneClient_1 = __importDefault(__nccwpck_require__(9212));
 const logger_1 = __nccwpck_require__(7893);
 const FrameworkType_1 = __nccwpck_require__(21485);
 const logger = new logger_1.Logger('testResultsService');
-const processArtifact = async (resFullPath, buildContext) => {
-    logger.info(`processArtifact: [${resFullPath}]`);
-    const resFileName = path.basename(resFullPath);
-    await sendTestResults(resFullPath, { ...buildContext, artifact_id: resFileName });
-    logger.info('processArtifact: Completed.');
-};
 const sendTestResults = async (resFullPath, buildContext) => {
     logger.info(`sendTestResults: [${resFullPath}] ...`);
     const fileContent = fs_extra_1.default.readFileSync(resFullPath, 'utf-8');
@@ -79741,7 +79735,8 @@ const sendTestResults = async (resFullPath, buildContext) => {
 const sendJUnitTestResults = async (workflowRunId, jobId, serverId, resFullPath) => {
     logger.debug('sendJUnitTestResults: ...');
     const buildContext = { server_id: serverId, build_id: `${workflowRunId}`, job_id: jobId, external_run_id: undefined };
-    await processArtifact(resFullPath, buildContext);
+    const resFileName = path.basename(resFullPath);
+    await sendTestResults(resFullPath, { ...buildContext, artifact_id: resFileName });
     logger.info('JUnit test results processed and sent successfully.');
 };
 exports.sendJUnitTestResults = sendJUnitTestResults;

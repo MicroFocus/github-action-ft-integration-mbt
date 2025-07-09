@@ -236,23 +236,22 @@ export const handleCurrentEvent = async (): Promise<void> => {
       logger.debug(JSON.stringify(mbtTestInfo, null, 2));
     };
     const ok = await MbtPreTestExecuter.preProcess(mbtTestInfos);
-    let isResultsSent = false;
-    let exitCode = ExitCode.Aborted;
     if (ok) {
-      let { code, resFullPath } = await FtTestExecuter.preProcess(mbtTestInfos);
-      exitCode = code;
+      const { exitCode, resFullPath } = await FtTestExecuter.process(mbtTestInfos);
+      const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
+      await sendFinishEvent(res);
       await sendJUnitTestResults(workflowRunId, ciId, ciServerInstanceId, resFullPath);
-      isResultsSent = true;
+      // TODO check TestResultServiceImpl.publishResultsToOctane
+      logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
+      return exitCode;
     } else {
-      logger.error(`handleExecutorEvent: Failed to convert MBT tests.`);
+      await sendFinishEvent(Result.ABORTED);
+      logger.error(`handleExecutorEvent: Failed to convert MBT tests. ExitCode=${ExitCode.Aborted}`);
+      return ExitCode.Aborted;
     };
-
-    // TODO check TestResultServiceImpl.publishResultsToOctane and updateExecutionFlowDetailParameter
-    const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
-
-    await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer.url, causes, execParams, ciServerInstanceId, isResultsSent, res);
-    logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
-    return exitCode;
+    async function sendFinishEvent(res: Result) {
+      await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer?.url!, causes, execParams, ciServerInstanceId, res);
+    }
   }
 };
 

@@ -10,8 +10,8 @@ import { config } from '../config/config';
 const logger = new Logger('FtTestExecuter');
 
 export default class FtTestExecuter {
-  public static async preProcess(testInfos: UftTestInfo[]): Promise<{ code: ExitCode; resFullPath: string }> {
-    logger.debug(`preProcess: mbtTestInfos.length=${testInfos.length} ...`);
+  public static async process(testInfos: UftTestInfo[]): Promise<{ exitCode: ExitCode; resFullPath: string }> {
+    logger.debug(`process: mbtTestInfos.length=${testInfos.length} ...`);
     const wsPath = process.env.RUNNER_WORKSPACE!; // e.g., C:\GitHub_runner\_work\ufto-tests\
     await checkReadWriteAccess(wsPath);
     const suffix = getTimestamp();
@@ -19,8 +19,8 @@ export default class FtTestExecuter {
     await checkFileExists(propsFullPath);
     const actionBinPath = await FTL.ensureToolExists();
     const exitCode = await FTL.runTool(actionBinPath, propsFullPath);
-    logger.debug(`preProcess: exitCode=${exitCode}`);
-    return { code: exitCode, resFullPath: resFullPath };
+    logger.debug(`process: exitCode=${exitCode}`);
+    return { exitCode, resFullPath: resFullPath };
   }
 
   private static async createPropsFile(wsPath: string, suffix: string,

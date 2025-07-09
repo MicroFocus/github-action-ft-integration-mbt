@@ -37,13 +37,6 @@ import { FrameworkType } from '@microfocus/alm-octane-test-result-convertion/dis
 
 const logger: Logger = new Logger('testResultsService');
 
-const processArtifact = async (resFullPath: string, buildContext: OctaneBuildConfig) => {
-  logger.info(`processArtifact: [${resFullPath}]`);
-  const resFileName = path.basename(resFullPath);
-  await sendTestResults(resFullPath, { ...buildContext, artifact_id: resFileName });
-  logger.info('processArtifact: Completed.');
-};
-
 const sendTestResults = async (resFullPath: string, buildContext: OctaneBuildConfig) => {
   logger.info(`sendTestResults: [${resFullPath}] ...`);
   const fileContent = fsExtra.readFileSync(resFullPath, 'utf-8');
@@ -62,7 +55,8 @@ const sendTestResults = async (resFullPath: string, buildContext: OctaneBuildCon
 const sendJUnitTestResults = async (workflowRunId: number, jobId: string, serverId: string, resFullPath: string) => {
   logger.debug('sendJUnitTestResults: ...');
   const buildContext: OctaneBuildConfig = { server_id: serverId, build_id: `${workflowRunId}`, job_id: jobId, external_run_id: undefined };
-  await processArtifact(resFullPath, buildContext);
+  const resFileName = path.basename(resFullPath);
+  await sendTestResults(resFullPath, { ...buildContext, artifact_id: resFileName });
   logger.info('JUnit test results processed and sent successfully.');
 };
 

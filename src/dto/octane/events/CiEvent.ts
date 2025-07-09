@@ -38,7 +38,7 @@ export default interface CiEvent {
   buildCiId: string;
   project: string;
   number?: string;
-  testResultExpected?: boolean;
+  //testResultExpected?: boolean;
   result?: Result;
   startTime: number;
   estimatedDuration?: number;

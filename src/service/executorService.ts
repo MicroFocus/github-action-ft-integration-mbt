@@ -97,7 +97,6 @@ const sendExecutorFinishEvent = async (
   causes: CiEventCause[],
   params: CiParam[],
   ciServerInstanceId: string,
-  testResultExpected: boolean,
   result: Result
 ): Promise<void> => {
   logger.debug(`sendExecutorFinishEvent: ...`);
@@ -115,7 +114,6 @@ const sendExecutorFinishEvent = async (
     parameters: params,
     duration: (new Date().getTime() - startTime),
     skipValidation: true,
-    testResultExpected,
     result
   };
   await OctaneClient.sendEvent(evt, ciServerInstanceId, baseUrl);
