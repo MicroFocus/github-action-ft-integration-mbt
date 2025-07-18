@@ -55,7 +55,7 @@ import MbtPreTestExecuter from './mbt/MbtPreTestExecuter';
 import { ExitCode } from './ft/ExitCode';
 import FtTestExecuter from './ft/FtTestExecuter';
 import { CiCausesType, Result } from './dto/octane/events/CiTypes';
-import { sendJUnitTestResults } from './service/testResultsService';
+import { publishResultsToOctane } from './service/testResultsService';
 
 const logger: Logger = new Logger('eventHandler');
 const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId'];
@@ -238,18 +238,18 @@ export const handleCurrentEvent = async (): Promise<void> => {
     if (ok) {
       const { exitCode, resFullPath } = await FtTestExecuter.process(mbtTestInfos);
       const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
-      await sendFinishEvent(res);
-      await sendJUnitTestResults(workflowRunId, ciId, ciServerInstanceId, resFullPath);
+      await publishResultsToOctane(workflowRunId, ciId, ciServerInstanceId, resFullPath);
+      await sendFinishEvent(res, true);
       // TODO check TestResultServiceImpl.publishResultsToOctane
       logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
       return exitCode;
     } else {
-      await sendFinishEvent(Result.ABORTED);
+      await sendFinishEvent(Result.ABORTED, false);
       logger.error(`handleExecutorEvent: Failed to convert MBT tests. ExitCode=${ExitCode.Aborted}`);
       return ExitCode.Aborted;
     };
-    async function sendFinishEvent(res: Result) {
-      await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer?.url!, causes, execParams, ciServerInstanceId, res);
+    async function sendFinishEvent(res: Result, testResExpected: boolean) {
+      await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer?.url!, causes, execParams, ciServerInstanceId, testResExpected, res);
     }
   }
 };

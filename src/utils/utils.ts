@@ -28,6 +28,7 @@
  */
 
 import * as fs from 'fs/promises';
+import { existsSync, lstatSync } from 'fs';
 import * as path from 'path';
 import { UftoTestType } from '../dto/ft/UftoTestType';
 import { context } from '@actions/github';
@@ -429,4 +430,19 @@ const parseTimeToFloat = (time: string): number => {
   return NaN;
 }
 
-export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreaterOrEqual, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, getTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists, escapeXML, parseTimeToFloat };
+const getLastFolderFromPath = (dirPath: string): string => {
+  if (!dirPath) return "";
+  // Remove trailing slashes and normalize path
+  const cleanPath = path.normalize(dirPath.replace(/[\\/]+$/, ''));
+  // Get the last component of the path
+  const lastFolder = path.basename(cleanPath);
+
+  // Check if the path is a directory
+  if (existsSync(cleanPath) && lstatSync(cleanPath).isDirectory()) {
+    return lastFolder;
+  } else {
+    throw new Error(`The path ${cleanPath} is not a directory or does not exist.`);
+  }
+}
+
+export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreaterOrEqual, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, getTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists, escapeXML, parseTimeToFloat, getLastFolderFromPath };

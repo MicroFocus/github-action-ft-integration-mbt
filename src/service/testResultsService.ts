@@ -62,12 +62,12 @@ const sendTestResults = async (buildId: number, resFullPath: string, buildContex
   logger.info('All test results have been sent successfully.');
 };
 
-const sendJUnitTestResults = async (workflowRunId: number, jobId: string, serverId: string, resFullPath: string) => {
-  logger.debug('sendJUnitTestResults: ...');
+const publishResultsToOctane = async (workflowRunId: number, jobId: string, serverId: string, resFullPath: string) => {
+  logger.debug(`publishResultsToOctane: workflowRunId=${workflowRunId}, jobId=${jobId}, serverId=${serverId}, resFullPath=[${resFullPath}] ...`);
   //const resFileName = path.basename(resFullPath);
   const buildContext: OctaneBuildConfig = { server_id: serverId, build_id: `${workflowRunId}`, job_id: jobId, external_run_id: undefined, artifact_id: undefined };
   await sendTestResults(workflowRunId, resFullPath, buildContext);
   logger.info('JUnit test results processed and sent successfully.');
 };
 
-export { sendJUnitTestResults };
+export { publishResultsToOctane };

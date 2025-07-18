@@ -4,6 +4,8 @@ import { Logger } from '../utils/logger';
 import { TestResult } from './TestResult';
 import { CaseResult } from './CaseResult';
 import { getMBTData } from './utils';
+import path from 'path';
+import { getLastFolderFromPath } from '../utils/utils';
 
 const logger = new Logger('JUnitXmlIterator');
 export class JUnitXmlIterator {
@@ -54,7 +56,7 @@ export class JUnitXmlIterator {
     this.moduleName = tc.className || '';
     this.packageName = ""; //TODO check java code beeter
     this.className = tc.className || '';
-    this.testName = tc.testName || '';
+    this.testName = getLastFolderFromPath(tc.testName || '');
     this.testDuration = tc.duration || 0;
     this.status = tc.skipped ? 'SKIPPED' : 'PASSED';
     this.stackTraceStr = tc.errorStackTrace || '';
