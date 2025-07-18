@@ -56,7 +56,7 @@ export class JUnitXmlIterator {
     this.moduleName = tc.className || '';
     this.packageName = ""; //TODO check java code beeter
     this.className = tc.className || '';
-    this.testName = getLastFolderFromPath(tc.testName || '');
+    this.testName = (tc.testName || ''); //getLastFolderFromPath
     this.testDuration = tc.duration || 0;
     this.status = tc.skipped ? 'SKIPPED' : 'PASSED';
     this.stackTraceStr = tc.errorStackTrace || '';

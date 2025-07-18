@@ -434,14 +434,10 @@ const getLastFolderFromPath = (dirPath: string): string => {
   if (!dirPath) return "";
   // Remove trailing slashes and normalize path
   const cleanPath = path.normalize(dirPath.replace(/[\\/]+$/, ''));
-  // Get the last component of the path
-  const lastFolder = path.basename(cleanPath);
-
-  // Check if the path is a directory
   if (existsSync(cleanPath) && lstatSync(cleanPath).isDirectory()) {
-    return lastFolder;
+    return path.basename(cleanPath);
   } else {
-    throw new Error(`The path ${cleanPath} is not a directory or does not exist.`);
+    return cleanPath;
   }
 }
 
