@@ -13,7 +13,7 @@ export class JUnitTestResult implements XmlWritableTestResult {
   public result: string;
   public duration: number;
   public testError: any | null;
-  public buildId: number;
+  //public buildId: number;
   //public runFolder: string;
   public runId: number | null;
   public externalAssets: string;
@@ -30,7 +30,7 @@ export class JUnitTestResult implements XmlWritableTestResult {
     externalReportUrl: string,
     description: string,
     resultData: any[],
-    buildId: number,
+    //buildId: number,
     //runFolder: string,
     runId: number | null,
     externalAssets: string
@@ -46,24 +46,29 @@ export class JUnitTestResult implements XmlWritableTestResult {
     this.result = result;
     this.duration = duration;
     this.testError = testError;
-    this.buildId = buildId;
+    //this.buildId = buildId;
     //this.runFolder = runFolder;
     this.runId = runId;
     this.externalAssets = externalAssets;
   }
 
-  public writeXmlElement(writer: XMLElement): void {
-    const testRun = writer.e('test_run', {
+  public writeXmlElement(root: XMLElement): void {
+    let attrs: { [key: string]: string } = {
       module: this.moduleName,
       package: this.packageName,
       class: this.className,
       name: this.testName,
-      duration: this.duration.toString(),
+      duration: `${Math.round(this.duration)}`,
       status: this.result,
       started: this.started.toString(),
-      'external_report_url': this.externalReportUrl,
-      'external_assets': this.externalAssets
-    });
+      external_assets: this.externalAssets,
+      run_type: "MBT"
+    };
+    if (this.externalReportUrl) {
+      attrs = { ...attrs, external_report_url: this.externalReportUrl };
+    }
+
+    const testRun = root.e('test_run', attrs);
 
     if (this.testError) {
       const error = testRun.e('error', {

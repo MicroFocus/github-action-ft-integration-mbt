@@ -9,8 +9,8 @@ import { TestResult } from './TestResult';
 const logger = new Logger('TestResultManager');
 
 export class TestResultManager {
-  public static async buildOctaneXmlFile(jobName: string, buildId: number, junitResult: TestResult): Promise<string> {
-    logger.debug(`buildOctaneXmlFile: job: ${jobName}, build: ${buildId}`);
+  public static async buildOctaneXmlFile(serverId: string, jobId: string, buildId: string, junitResult: TestResult): Promise<string> {
+    logger.debug(`buildOctaneXmlFile: job: ${jobId}, build: ${buildId}, serverId: ${serverId}`);
     const mbtPath = path.join(config.workPath, FTL._MBT);
     await fs.ensureDir(mbtPath);
     const junitResXmlFile = path.join(mbtPath, 'junitResult.xml');
@@ -18,9 +18,8 @@ export class TestResultManager {
     const mqmTestsFile = path.join(mbtPath, 'mqmTests.xml');
 
     const runResultsFilesMap = await this.collectRunResultsXmlFiles(mbtPath);
-    logger.debug(`Found ${runResultsFilesMap.size} run_results.xml files for job: ${jobName}, build: ${buildId}`);
 
-    const builder = new MqmTestResultsBuilder(junitResult, jobName, buildId, mqmTestsFile, runResultsFilesMap);
+    const builder = new MqmTestResultsBuilder(junitResult, serverId, jobId, buildId, mqmTestsFile, runResultsFilesMap);
     await builder.invoke();
     logger.debug(`buildOctaneXmlFile: Finished writing mqmTests.xml`);
     return mqmTestsFile;
@@ -36,8 +35,10 @@ export class TestResultManager {
       const filePath = path.join(mbtPath, file);
       const runId = this.extractRunIdFromPath(filePath);
       runResultsFilesMap.set(runId, filePath);
+      logger.debug(`runId=${runId}, [${filePath}]`);
     }
 
+    logger.debug(`Found ${runResultsFilesMap.size} run_results.xml files`);
     return runResultsFilesMap;
   }
 

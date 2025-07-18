@@ -40,7 +40,7 @@ import { TestResultManager } from '../reporting/TestResultManager';
 
 const logger: Logger = new Logger('testResultsService');
 
-const sendTestResults = async (buildId: number, resFullPath: string, buildContext: OctaneBuildConfig) => {
+const sendTestResults = async (resFullPath: string, buildContext: OctaneBuildConfig) => {
   logger.info(`sendTestResults: [${resFullPath}] ...`);
   //const fileContent = fsExtra.readFileSync(resFullPath, 'utf-8');
   //const octaneXml = convertJUnitXMLToOctaneXML(fileContent, buildContext, FrameworkType.OTFunctionalTesting);
@@ -49,7 +49,7 @@ const sendTestResults = async (buildId: number, resFullPath: string, buildContex
   //const octaneXml = convertJUnitXMLToOctaneXML(res.toXML(), buildContext);
   const junitResXmlFilePath = path.join(config.workPath, FTL._MBT, 'junitResult.xml');
   await fsExtra.writeFile(junitResXmlFilePath, junitRes.toXML());
-  const mqmTestsXmlFilePath = await TestResultManager.buildOctaneXmlFile(buildContext.job_name!, buildId, junitRes);
+  const mqmTestsXmlFilePath = await TestResultManager.buildOctaneXmlFile(buildContext.server_id, buildContext.job_id, buildContext.build_id, junitRes);
   const octaneXml = await fsExtra.readFile(mqmTestsXmlFilePath, 'utf-8');
   //logger.debug(`Converted XML: ${octaneXml}`);
 
@@ -66,7 +66,7 @@ const publishResultsToOctane = async (workflowRunId: number, jobId: string, serv
   logger.debug(`publishResultsToOctane: workflowRunId=${workflowRunId}, jobId=${jobId}, serverId=${serverId}, resFullPath=[${resFullPath}] ...`);
   //const resFileName = path.basename(resFullPath);
   const buildContext: OctaneBuildConfig = { server_id: serverId, build_id: `${workflowRunId}`, job_id: jobId, external_run_id: undefined, artifact_id: undefined };
-  await sendTestResults(workflowRunId, resFullPath, buildContext);
+  await sendTestResults(resFullPath, buildContext);
   logger.info('JUnit test results processed and sent successfully.');
 };
 

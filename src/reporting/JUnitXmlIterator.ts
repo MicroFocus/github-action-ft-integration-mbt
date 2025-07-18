@@ -4,24 +4,21 @@ import { Logger } from '../utils/logger';
 import { TestResult } from './TestResult';
 import { CaseResult } from './CaseResult';
 import { getMBTData } from './utils';
-import path from 'path';
-import { getLastFolderFromPath } from '../utils/utils';
 
 const logger = new Logger('JUnitXmlIterator');
 export class JUnitXmlIterator {
-  private jobName: string;
-  private buildId: number;
+  //private jobName: string;
+  //private buildId: number;
   //private runFolder: string;
   private buildStarted: number;
   private runResultsFilesMap: Map<number, string>;
   private testNameToJunitResultMap: Map<string, JUnitTestResult> = new Map();
   private moduleName: string = '';
   private packageName: string = '';
-  private id: string = '';
   private className: string = '';
   private testName: string = '';
   private testDuration: number = 0;
-  private status: string = 'PASSED';
+  private status: string = 'Passed';
   private stackTraceStr: string = '';
   private errorType: string = '';
   private errorMsg: string = '';
@@ -31,10 +28,7 @@ export class JUnitXmlIterator {
   private runId: number | null = null;
   private externalAssets: string = '';
 
-  constructor(jobName: string, buildId: number, /*runFolder: string, */buildStarted: number, runResultsFilesMap: Map<number, string>) {
-    this.jobName = jobName;
-    this.buildId = buildId;
-    //this.runFolder = runFolder;
+  constructor(buildStarted: number, runResultsFilesMap: Map<number, string>) {
     this.buildStarted = buildStarted;
     this.runResultsFilesMap = runResultsFilesMap;
   }
@@ -42,7 +36,7 @@ export class JUnitXmlIterator {
   public async processXmlResult(result: TestResult): Promise<void> {
     if (result.suites) {
       for (const suite of result.suites) {
-        this.id = suite.id || '';
+        //this.id = suite.id || '';
         if (suite.cases) {
           for (const testCase of suite.cases) {
             await this.processTestCase(testCase);
@@ -56,7 +50,7 @@ export class JUnitXmlIterator {
     this.moduleName = this.className = this.packageName = ""; //TODO double-check / test better
     this.testName = (tc.testName || ''); //getLastFolderFromPath
     this.testDuration = tc.duration || 0;
-    this.status = tc.skipped ? 'SKIPPED' : 'PASSED';
+    this.status = tc.skipped ? 'Skipped' : 'Passed';
     this.stackTraceStr = tc.errorStackTrace || '';
     this.errorMsg = tc.errorDetails || '';
     const runId = tc.runId;
@@ -89,7 +83,7 @@ export class JUnitXmlIterator {
       this.externalURL,
       this.description,
       this.resultData,
-      this.buildId,
+      //this.buildId,
       //this.runFolder,
       this.runId,
       this.externalAssets
