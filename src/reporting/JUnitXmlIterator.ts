@@ -53,20 +53,7 @@ export class JUnitXmlIterator {
   }
 
   private async processTestCase(tc: CaseResult): Promise<void> {
-    let classname = tc.className;
-    const moduleIndex = classname.indexOf("::");
-    if (moduleIndex) {
-      this.moduleName = classname.substring(0, moduleIndex);
-      classname = classname.substring(moduleIndex + 2);
-    }
-    const p = classname.lastIndexOf('.');
-    this.className = classname.substring(p + 1);
-    if (p > 0) {
-      this.packageName = classname.substring(0, p);
-    } else {
-      this.packageName = "";
-    }
-
+    this.moduleName = this.className = this.packageName = ""; //TODO double-check / test better
     this.testName = (tc.testName || ''); //getLastFolderFromPath
     this.testDuration = tc.duration || 0;
     this.status = tc.skipped ? 'SKIPPED' : 'PASSED';
