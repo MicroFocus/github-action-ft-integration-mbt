@@ -55,10 +55,10 @@ export default class FtTestExecuter {
     logger.debug(`createMtbxFile: [${mtbxFullPath}]`);
     let xml = "<Mtbx>\n";
     testInfos.map(async (testInfo, i) => {
-      const idx = i + 1;
+      //const idx = i + 1;
       const runId = testInfo.runId;
       const name = testInfo.testName;
-      const fullPath = path.join(config.workPath, FTL._MBT, `_${idx}`, `${runId}`, name);
+      const fullPath = path.join(config.workPath, FTL._MBT, `${runId}`, name);
       xml += `\t<Test runId="${runId}" name="${name}" path="${fullPath}" />\n`;
     });
     xml += `</Mtbx>`;

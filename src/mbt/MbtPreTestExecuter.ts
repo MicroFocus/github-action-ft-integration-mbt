@@ -48,7 +48,7 @@ export default class MbtPreTestExecuter {
     await Promise.all(testInfos.map(async (testInfo, i) => {
       const idx = i + 1;
       props[`test${idx}`] = testInfo.testName;
-      props[`package${idx}`] = `_${idx}`;
+      props[`package${idx}`] = `${testInfo.runId}`;
       props[`script${idx}`] = await this.updateTestScriptResources(testInfo.scriptData);
       props[`unitIds${idx}`] = testInfo.unitIds.join(';');
       props[`underlyingTests${idx}`] = escapePropVal(testInfo.underlyingTests.join(';'));
