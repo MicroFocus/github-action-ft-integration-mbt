@@ -30,7 +30,7 @@ export class CaseResult {
     this.duration = parseTimeToFloat(attrs.time);
     this.skipped = false;
     this.skippedMessage = null;
-    this.runId = parseInt(attrs.runId ?? 0, 10);
+    this.runId = parseInt(attrs.runid ?? 0, 10);
   }
 
   public toXML(indent: number = 2): string {

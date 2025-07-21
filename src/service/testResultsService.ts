@@ -45,7 +45,7 @@ const sendTestResults = async (resFullPath: string, buildContext: OctaneBuildCon
   //const fileContent = fsExtra.readFileSync(resFullPath, 'utf-8');
   //const octaneXml = convertJUnitXMLToOctaneXML(fileContent, buildContext, FrameworkType.OTFunctionalTesting);
   const parser = new JUnitParser(resFullPath, false, 'assets'); // TODO assets 
-  const junitRes = await parser.parseResult()
+  const junitRes = await parser.parseResult();
   //const octaneXml = convertJUnitXMLToOctaneXML(res.toXML(), buildContext);
   const junitResXmlFilePath = path.join(config.workPath, FTL._MBT, 'junitResult.xml');
   await fsExtra.writeFile(junitResXmlFilePath, junitRes.toXML());
