@@ -58,13 +58,14 @@ export class SuiteResult {
       let testSuite: SuiteResult | null = null;
       let testCase: CaseResult | null = null;
       let currentText: string = "";
+      let attrs: any = null; // Track attributes for the current node
       let suiteStack: SuiteResult[] = []; // Track suite hierarchy
       let nodeName = "";
 
       const handleOpentag = (node: any) => {
         logger.debug(`handleOpentag: ${node.name}`);
         nodeName = node.name;
-        const attrs = node.attributes;
+        attrs = node.attributes;
         if (nodeName === "testsuite") {
           testSuite = new SuiteResult(xmlFilePath, node);
           r.push(testSuite); // Add to root result array immediately
@@ -107,7 +108,9 @@ export class SuiteResult {
               testCase = null;
             } else if (tagName === "error" || tagName === "failure") {
               testCase.errorStackTrace = currentText;
-              testCase.errorDetails = currentText;
+              if (attrs?.message) {
+                testCase.errorDetails = attrs.message as string;
+              }
             }
           } else if (tagName === "testsuite") {
             suiteStack.pop(); // Pop current suite from stack

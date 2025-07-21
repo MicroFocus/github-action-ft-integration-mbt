@@ -51,8 +51,21 @@ export class JUnitXmlIterator {
     this.testName = (tc.testName || ''); //getLastFolderFromPath
     this.testDuration = tc.duration || 0;
     this.status = tc.skipped ? 'Skipped' : 'Passed';
-    this.stackTraceStr = tc.errorStackTrace || '';
-    this.errorMsg = tc.errorDetails || '';
+    if (tc.errorStackTrace) {
+      this.stackTraceStr = tc.errorStackTrace;
+      this.status = 'Failed';
+      const idx = tc.errorStackTrace.indexOf("at ");
+      if (idx >= 0) {
+        this.errorType = tc.errorStackTrace.substring(0, idx);
+      }
+    } else if (tc.errorDetails) {
+      this.errorMsg = tc.errorDetails;
+      this.status = 'Failed';
+      const idx = tc.errorDetails.indexOf(":");
+      if (idx >= 0) {
+        this.errorType = tc.errorStackTrace.substring(0, idx);
+      }
+    }
     const runId = tc.runId;
     if (this.runResultsFilesMap.has(runId)) {
       const runResXmlFilePath = this.runResultsFilesMap.get(runId);
