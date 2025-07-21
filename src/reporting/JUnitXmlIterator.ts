@@ -51,19 +51,18 @@ export class JUnitXmlIterator {
     this.testName = (tc.testName || ''); //getLastFolderFromPath
     this.testDuration = tc.duration || 0;
     this.status = tc.skipped ? 'Skipped' : 'Passed';
-    if (tc.errorStackTrace) {
+    if (tc.errorStackTrace || tc.errorDetails) {
+      this.status = 'Failed';
       this.stackTraceStr = tc.errorStackTrace;
-      this.status = 'Failed';
-      const idx = tc.errorStackTrace.indexOf("at ");
-      if (idx >= 0) {
-        this.errorType = tc.errorStackTrace.substring(0, idx);
-      }
-    } else if (tc.errorDetails) {
       this.errorMsg = tc.errorDetails;
-      this.status = 'Failed';
-      const idx = tc.errorDetails.indexOf(":");
+      let idx = tc.errorStackTrace.indexOf("at ");
       if (idx >= 0) {
         this.errorType = tc.errorStackTrace.substring(0, idx);
+      } else {
+        idx = tc.errorDetails.indexOf(":");
+        if (idx >= 0) {
+          this.errorType = tc.errorDetails.substring(0, idx);
+        }
       }
     }
     const runId = tc.runId;
