@@ -9,7 +9,7 @@ import { TestResult } from './TestResult';
 const logger = new Logger('TestResultManager');
 
 export class TestResultManager {
-  public static async buildOctaneXmlFile(serverId: string, jobId: string, buildId: string, junitResult: TestResult): Promise<string> {
+  public static async buildOctaneXmlFile(serverId: string, jobId: string, buildId: number, junitResult: TestResult): Promise<string> {
     logger.debug(`buildOctaneXmlFile: job: ${jobId}, build: ${buildId}, serverId: ${serverId}`);
     const mbtPath = path.join(config.workPath, FTL._MBT);
     await fs.ensureDir(mbtPath);

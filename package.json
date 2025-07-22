@@ -20,7 +20,6 @@
     "@actions/exec": "^1.1.1",
     "@actions/github": "^6.0.1",
     "@microfocus/alm-octane-js-rest-sdk": "^25.3.0",
-    "@microfocus/alm-octane-test-result-convertion": "^25.2.3",
     "@xmldom/xmldom": "^0.9.8",
     "cfb": "^1.2.2",
     "diff": "^7.0.0",

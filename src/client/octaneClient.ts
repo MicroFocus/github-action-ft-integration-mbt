@@ -93,7 +93,7 @@ export default class OctaneClient {
     await this.octane.executeCustomRequest(`${this.ANALYTICS_CI_INTERNAL_API_URL}/events`, Octane.operationTypes.update, body);
   };
 
-  public static sendTestResult = async (testResult: string, instanceId: string, jobId: string, buildId: string): Promise<void> => {
+  public static sendTestResult = async (testResult: string, instanceId: string, jobId: string, buildId: number): Promise<void> => {
     this.logger.debug(`sendTestResult: jobId='${jobId}, buildId='${buildId}', instanceId='${instanceId}' ...`);
 
     await this.octane.executeCustomRequest(

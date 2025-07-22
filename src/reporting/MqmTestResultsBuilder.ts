@@ -10,14 +10,14 @@ export class MqmTestResultsBuilder {
   //private junitResFilePath: string;
   private junitResult: TestResult
   private jobId: string;
-  private buildId: string;
+  private buildId: number;
   private serverId: string;
   private tmpMqmTestsFile: string;
   private buildStarted: number;
   private runResultsFilesMap: Map<number, string>;
 
   constructor(
-    junitResult: TestResult, serverId: string, jobId: string, buildId: string, tmpMqmTestsFile: string, runResultsFilesMap: Map<number, string>) {
+    junitResult: TestResult, serverId: string, jobId: string, buildId: number, tmpMqmTestsFile: string, runResultsFilesMap: Map<number, string>) {
     //this.junitResFilePath = junitResFilePath;
     this.junitResult = junitResult;
     this.jobId = jobId;
