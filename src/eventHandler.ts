@@ -238,7 +238,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
     if (ok) {
       const { exitCode, resFullPath } = await FtTestExecuter.process(mbtTestInfos);
       const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
-      await publishResultsToOctane(workflowRunId, ciId, ciServerInstanceId, resFullPath);
+      await publishResultsToOctane(ciServerInstanceId, ciId, workflowRunId, resFullPath);
       await sendFinishEvent(res, true);
       // TODO check TestResultServiceImpl.publishResultsToOctane
       logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);

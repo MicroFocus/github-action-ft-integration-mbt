@@ -27,28 +27,25 @@
  * limitations under the License.
  */
 
-import * as path from 'path';
 import fsExtra from 'fs-extra';
 import OctaneClient from '../client/octaneClient';
 import { Logger } from '../utils/logger';
 import { JUnitParser } from '../reporting/JUnitParser';
-import { config } from '../config/config';
-import FTL from '../ft/FTL';
 import { TestResultManager } from '../reporting/TestResultManager';
+import { BuildInfo } from '../reporting/interfaces';
 
 const logger: Logger = new Logger('testResultsService');
-
+  
 const sendTestResults = async (serverId: string, jobId: string, buildId: number, resFullPath: string) => {
   logger.info(`sendTestResults: [${resFullPath}] ...`);
-  const parser = new JUnitParser(resFullPath, false, 'assets'); // TODO assets 
+  const buildInfo: BuildInfo = {serverId, jobId, buildId};
+  const parser = new JUnitParser(resFullPath); // TODO assets 
   const junitRes = await parser.parseResult();
-  const junitResXmlFilePath = path.join(config.workPath, FTL._MBT, 'junitResult.xml');
-  await fsExtra.writeFile(junitResXmlFilePath, junitRes.toXML());
-  const mqmTestsXmlFilePath = await TestResultManager.buildOctaneXmlFile(serverId, jobId, buildId, junitRes);
+  const mqmTestsXmlFilePath = await TestResultManager.buildOctaneXmlFile(buildInfo, junitRes);
   const octaneXml = await fsExtra.readFile(mqmTestsXmlFilePath, 'utf-8');
 
   try {
-    await OctaneClient.sendTestResult(octaneXml, serverId, jobId, buildId);
+    await OctaneClient.sendTestResult(octaneXml/*, serverId, jobId, buildId*/);
   } catch (error) {
     logger.error(`Failed to send test results. Check if the 'testingFramework' parameter is configured in the integration workflow. Error: ${error}`);
   };
@@ -56,7 +53,7 @@ const sendTestResults = async (serverId: string, jobId: string, buildId: number,
   logger.info('All test results have been sent successfully.');
 };
 
-const publishResultsToOctane = async (workflowRunId: number, jobId: string, serverId: string, resFullPath: string) => {
+const publishResultsToOctane = async (serverId: string, jobId: string, workflowRunId: number, resFullPath: string) => {
   logger.debug(`publishResultsToOctane: workflowRunId=${workflowRunId}, jobId=${jobId}, serverId=${serverId}, resFullPath=[${resFullPath}] ...`);
   //const resFileName = path.basename(resFullPath);
   await sendTestResults(serverId, jobId, workflowRunId, resFullPath);

@@ -154,3 +154,10 @@ export interface RunResultsSteps {
   steps: RunResultsStep[];
   duration: number;
 }
+
+export interface BuildInfo {
+  serverId: string;
+  jobId: string;
+  buildId: number;
+  artifactId?: number;
+}

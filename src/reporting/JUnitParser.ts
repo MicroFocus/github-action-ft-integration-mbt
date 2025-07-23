@@ -8,7 +8,7 @@ export class JUnitParser {
   private readonly xmlResFilePath: string;
   private readonly externalAssets: string;
 
-  constructor(xmlResFilePath: string, keepLongStdio: boolean, externalAssets: string = "") {
+  constructor(xmlResFilePath: string, keepLongStdio: boolean = true, externalAssets: string = "") {
     this.keepLongStdio = keepLongStdio;
     this.xmlResFilePath = xmlResFilePath;
     this.externalAssets = externalAssets;

@@ -5,24 +5,46 @@ import { Logger } from '../utils/logger'
 import { config } from '../config/config';
 import FTL from '../ft/FTL';
 import { TestResult } from './TestResult';
+import { BuildInfo } from './interfaces';
+import GitHubClient from '../client/githubClient';
 
 const logger = new Logger('TestResultManager');
 
 export class TestResultManager {
-  public static async buildOctaneXmlFile(serverId: string, jobId: string, buildId: number, junitResult: TestResult): Promise<string> {
-    logger.debug(`buildOctaneXmlFile: job: ${jobId}, build: ${buildId}, serverId: ${serverId}`);
+  public static async buildOctaneXmlFile(buildInfo: BuildInfo, junitResult: TestResult): Promise<string> {
+    logger.debug(`buildOctaneXmlFile: ...`, buildInfo);
     const mbtPath = path.join(config.workPath, FTL._MBT);
     await fs.ensureDir(mbtPath);
     const junitResXmlFile = path.join(mbtPath, 'junitResult.xml');
     await fs.writeFile(junitResXmlFile, junitResult.toXML());
     const mqmTestsFile = path.join(mbtPath, 'mqmTests.xml');
-
     const runResultsFilesMap = await this.collectRunResultsXmlFiles(mbtPath);
 
-    const builder = new MqmTestResultsBuilder(junitResult, serverId, jobId, buildId, mqmTestsFile, runResultsFilesMap);
+    const artifactId = await this.buildArtifact(buildInfo.buildId, mbtPath, runResultsFilesMap);
+
+    const builder = new MqmTestResultsBuilder(junitResult, { ...buildInfo, artifactId }, mqmTestsFile, runResultsFilesMap);
     await builder.invoke();
     logger.debug(`buildOctaneXmlFile: Finished writing mqmTests.xml`);
     return mqmTestsFile;
+  }
+
+  private static async buildArtifact(buildId: number, mbtPath: string, runResultsFilesMap: Map<number, string>): Promise<number> {
+    logger.debug(`buildArtifact: buildId=${buildId} ...`);
+    const directories: string[] = [];
+    for (const filePath of runResultsFilesMap.values()) {
+      const directory = path.dirname(filePath);
+      directories.push(directory);
+    }
+    //TODO add junitResult.xml, mqmTests.xml and eventually other files (results_###.xml ?)
+    const artifactName = await GitHubClient.uploadArtifact(mbtPath, directories);
+    const artifacts = await GitHubClient.getWorkflowRunArtifacts(buildId);
+    for (const artifact of artifacts) {
+      logger.debug(`Artifact: ${artifact.name}, id=${artifact.id}`);
+      if (artifact.name === artifactName) {
+        return artifact.id;
+      }
+    }
+    return 0;
   }
 
   private static async collectRunResultsXmlFiles(mbtPath: string): Promise<Map<number, string>> {

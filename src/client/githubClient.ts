@@ -26,7 +26,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
+import * as path from 'path';
+import * as fs from 'fs';
+import { ArtifactClient, create } from '@actions/artifact';
 import { getOctokit, context } from '@actions/github';
 import { ActionsJob } from '../dto/github/ActionsJob';
 import Artifact from '../dto/github/Artifact';
@@ -37,6 +39,8 @@ import { Logger } from '../utils/logger';
 import FileContent from '../dto/github/FileContent';
 import * as core from '@actions/core';
 import { config } from '../config/config';
+
+
 const _owner_repo = { owner: config.owner, repo: config.repo };
 export default class GitHubClient {
   private static logger: Logger = new Logger('githubClient');
@@ -83,15 +87,15 @@ export default class GitHubClient {
 
   public static getJob = async (jobId: number): Promise<ActionsJob> => {
     this.logger.debug(`getJob: job_id='${jobId}' ...`);
-    return (await this.octokit.rest.actions.getJobForWorkflowRun({ ..._owner_repo, job_id: jobId})).data;
+    return (await this.octokit.rest.actions.getJobForWorkflowRun({ ..._owner_repo, job_id: jobId })).data;
   };
 
-  public static getWorkflowRunsTriggeredBeforeByStatus = async(beforeTime: number, workflowId: number, status: WorkflowRunStatus): Promise<WorkflowRun[]> => {
+  public static getWorkflowRunsTriggeredBeforeByStatus = async (beforeTime: number, workflowId: number, status: WorkflowRunStatus): Promise<WorkflowRun[]> => {
     this.logger.debug(`getWorkflowRunsTriggeredBeforeByStatus: beforeTime='${beforeTime}', workflow_id='${workflowId}', status='${status}' ...`);
 
     return (await this.octokit.paginate(this.octokit.rest.actions.listWorkflowRuns,
       { ..._owner_repo, workflow_id: workflowId, event: 'workflow_run', status, per_page: 100 },
-        response => response.data)
+      response => response.data)
     ).filter(run => new Date(run.run_started_at!).getTime() < beforeTime);
   };
 
@@ -108,6 +112,66 @@ export default class GitHubClient {
       response => response.data
     );
   };
+
+  public static uploadArtifact = async (parentPath: string, paths: string[], artifactName: string = "Reports", skipInvalidPaths: boolean = true): Promise<string> => {
+    try {
+      let filesToUpload: string[] = [];
+
+      for (const fileOrDirFullPath of paths) {
+        this.logger.debug(`uploadArtifact: reportDirPath='${fileOrDirFullPath}' ...`);
+        // Check if the path exists
+        if (!fs.existsSync(fileOrDirFullPath)) {
+          this.logger.error(`Path does not exist: ${fileOrDirFullPath}`);
+          if (!skipInvalidPaths) {
+            throw new Error(`Path does not exist: ${fileOrDirFullPath}`);
+          }
+          continue;
+        }
+        // Determine if the path is a file or directory
+        const stats = fs.statSync(fileOrDirFullPath);
+        if (stats.isFile()) {
+          filesToUpload.push(fileOrDirFullPath);
+        } else if (stats.isDirectory()) {
+          // Recursively collect all files in the directory
+          filesToUpload = filesToUpload.concat(this.walkDir(fileOrDirFullPath));
+        } else {
+          this.logger.error(`Path is neither a file nor a directory: ${fileOrDirFullPath}`);
+          if (!skipInvalidPaths) {
+            throw new Error(`Path is neither a file nor a directory: ${fileOrDirFullPath}`);
+          }
+          continue;
+        }
+      }
+
+      this.logger.debug(`Uploading artifact ${artifactName} with ${filesToUpload.length} file(s)`);
+      const artifactClient: ArtifactClient = create();
+      const uploadResponse = await artifactClient.uploadArtifact(artifactName, filesToUpload,
+        path.dirname(parentPath), // Root directory for relative paths
+        { continueOnError: false } // Stop on error
+      );
+
+      this.logger.info(`Artifact ${uploadResponse.artifactName} uploaded successfully.`);
+      return uploadResponse.artifactName;
+    } catch (error) {
+      this.logger.error(`uploadArtifact: Action failed: ${error instanceof Error ? error.message : String(error)}`);
+      throw error; // Re-throw to allow caller to handle
+    }
+  };
+
+  private static walkDir(dir: string): string[] {
+    let results: string[] = [];
+    const list = fs.readdirSync(dir);
+    for (const file of list) {
+      const filePath = path.join(dir, file);
+      const stat = fs.statSync(filePath);
+      if (stat.isDirectory()) {
+        results = results.concat(this.walkDir(filePath));
+      } else {
+        results.push(filePath);
+      }
+    }
+    return results;
+  }
 
   public static downloadArtifact = async (artifactId: number): Promise<ArrayBuffer> => {
     this.logger.info(`downloadArtifact: artifactId='${artifactId}' ...`);

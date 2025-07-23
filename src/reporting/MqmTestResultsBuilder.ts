@@ -3,26 +3,23 @@ import { JUnitXmlIterator } from './JUnitXmlIterator';
 import { create } from 'xmlbuilder';
 import { TestResult } from './TestResult';
 import { Logger } from '../utils/logger';
+import { BuildInfo } from './interfaces';
 
 const logger = new Logger('MqmTestResultsBuilder');
 
 export class MqmTestResultsBuilder {
   //private junitResFilePath: string;
   private junitResult: TestResult
-  private jobId: string;
-  private buildId: number;
-  private serverId: string;
+  private buildInfo: BuildInfo;
   private tmpMqmTestsFile: string;
   private buildStarted: number;
   private runResultsFilesMap: Map<number, string>;
 
   constructor(
-    junitResult: TestResult, serverId: string, jobId: string, buildId: number, tmpMqmTestsFile: string, runResultsFilesMap: Map<number, string>) {
+    junitResult: TestResult, buildInfo: BuildInfo, tmpMqmTestsFile: string, runResultsFilesMap: Map<number, string>) {
     //this.junitResFilePath = junitResFilePath;
     this.junitResult = junitResult;
-    this.jobId = jobId;
-    this.buildId = buildId;
-    this.serverId = serverId;
+    this.buildInfo = buildInfo;
     this.buildStarted = Date.now();
     this.tmpMqmTestsFile = tmpMqmTestsFile;
     this.runResultsFilesMap = runResultsFilesMap;
@@ -41,9 +38,10 @@ export class MqmTestResultsBuilder {
 
       const root = create('test_result');
       root.e('build', {
-        server_id: this.serverId,
-        job_id: this.jobId,
-        build_id: this.buildId
+        server_id: this.buildInfo.serverId,
+        job_id: this.buildInfo.jobId,
+        build_id: this.buildInfo.buildId,
+        artifact_id: this.buildInfo.artifactId
       });
 
       const testRuns = root.e('test_runs');

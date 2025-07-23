@@ -93,8 +93,9 @@ export default class OctaneClient {
     await this.octane.executeCustomRequest(customUrl, Octane.operationTypes.update, body);
   };
 
-  public static sendTestResult = async (xml: string, instanceId: string, jobId: string, buildId: number): Promise<void> => {
-    const url = `${this.ANALYTICS_CI_INTERNAL_API_URL}/test-results?skip-errors=true&instance-id=${instanceId}&job-ci-id=${jobId}&build-ci-id=${buildId}`;
+  public static sendTestResult = async (xml: string/*, instanceId: string, jobId: string, buildId: number*/): Promise<void> => {
+    //const url = `${this.ANALYTICS_CI_INTERNAL_API_URL}/test-results?skip-errors=true&instance-id=${instanceId}&job-ci-id=${jobId}&build-ci-id=${buildId}`;
+    const url = `${this.ANALYTICS_CI_INTERNAL_API_URL}/test-results?skip-errors=true`;
     this.logger.debug(`sendTestResult: POST ${url} ...`);
     this.logger.debug(xml);
     await this.octane.executeCustomRequest(url, Octane.operationTypes.create, xml, { 'Content-Type': 'application/xml' });
