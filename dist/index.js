@@ -52664,7 +52664,7 @@ GitHubClient.getWorkflowRunArtifacts = async (workflowRunId) => {
 };
 GitHubClient.uploadArtifact = async (parentPath, runResXmlfileFullPath) => {
     try {
-        _a.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}' ...`);
+        _a.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}', parentPath=[${parentPath}] ...`);
         (0, utils_1.checkFileExists)(runResXmlfileFullPath);
         const uniqueArtifactName = `runresults${Date.now()}`; // Ensure unique name
         _a.logger.debug(`Uploading artifact ${uniqueArtifactName} ...`);
@@ -52926,9 +52926,9 @@ async function run() {
         logger.info('BEGIN run ...');
         logger.info('Current dir = ' + process.cwd());
         const dir = config_1.config.workPath;
-        githubClient_1.default.uploadArtifact(process.cwd(), 'test.txt');
-        githubClient_1.default.uploadArtifact(dir, 'test.txt');
-        githubClient_1.default.uploadArtifact(dir, path_1.default.join(dir, "___mbt", 'junitResult.xml'));
+        await githubClient_1.default.uploadArtifact(process.cwd(), 'test.txt');
+        await githubClient_1.default.uploadArtifact(dir, 'test.txt');
+        await githubClient_1.default.uploadArtifact(dir, path_1.default.join(dir, "___mbt", 'junitResult.xml'));
         //await handleCurrentEvent();
     }
     catch (error) {

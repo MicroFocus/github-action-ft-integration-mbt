@@ -116,7 +116,7 @@ export default class GitHubClient {
 
   public static uploadArtifact = async (parentPath: string, runResXmlfileFullPath: string): Promise<string> => {
     try {
-      this.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}' ...`);
+      this.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}', parentPath=[${parentPath}] ...`);
 
       checkFileExists(runResXmlfileFullPath);
 

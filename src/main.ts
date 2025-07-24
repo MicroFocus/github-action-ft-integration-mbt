@@ -41,9 +41,9 @@ async function run () {
     logger.info('Current dir = ' + process.cwd());
 
     const dir = config.workPath;
-    GitHubClient.uploadArtifact(process.cwd(), 'test.txt');
-    GitHubClient.uploadArtifact(dir, 'test.txt');
-    GitHubClient.uploadArtifact(dir, path.join(dir, "___mbt", 'junitResult.xml'));
+    await GitHubClient.uploadArtifact(process.cwd(), 'test.txt');
+    await GitHubClient.uploadArtifact(dir, 'test.txt');
+    await GitHubClient.uploadArtifact(dir, path.join(dir, "___mbt", 'junitResult.xml'));
 
     //await handleCurrentEvent();
   } catch (error: any) {
