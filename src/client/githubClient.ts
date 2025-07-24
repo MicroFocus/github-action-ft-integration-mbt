@@ -113,7 +113,7 @@ export default class GitHubClient {
     );
   };*/
 
-  public static uploadArtifact = async (runResXmlfileFullPath: string, artifactName: string = "artifact1"): Promise<number> => {
+  public static uploadArtifact = async (runResXmlfileFullPath: string, artifactName: string = "run_results"): Promise<number> => {
     try {
       this.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}' ...`);
 
@@ -121,15 +121,12 @@ export default class GitHubClient {
 
       //const uniqueArtifactName = `${artifactName}${Date.now()}`; // Ensure unique name
       this.logger.debug(`Uploading artifact ${artifactName} ...`);
-      const uploadResponse = await artifact.uploadArtifact(artifactName, [runResXmlfileFullPath],
-        path.dirname(runResXmlfileFullPath)
-      );
+      const res = await artifact.uploadArtifact(artifactName, [runResXmlfileFullPath], path.dirname(runResXmlfileFullPath));
 
-      this.logger.info(`Artifact ${uploadResponse.id} uploaded successfully.`);
-      return uploadResponse.id ?? 0;
+      this.logger.info(`Artifact ${res.id} uploaded successfully.`);
+      return res.id ?? 0;
     } catch (error) {
       this.logger.error(`uploadArtifact: ${error instanceof Error ? error.message : String(error)}`);
-      //throw error; // Re-throw to allow caller to handle
       return 0;
     }
   };
@@ -166,13 +163,13 @@ export default class GitHubClient {
 
       const uniqueArtifactName = `reports-${Date.now()}`; // Ensure unique name
       this.logger.debug(`Uploading artifact ${uniqueArtifactName} with ${filesToUpload.length} file(s)`);
-      const uploadResponse = await artifact.uploadArtifact(uniqueArtifactName, filesToUpload, path.dirname(parentPath));
+      const res = await artifact.uploadArtifact(uniqueArtifactName, filesToUpload, parentPath);
 
-      this.logger.info(`Artifact ${uploadResponse.id} uploaded successfully.`);
-      return uploadResponse.id ?? 0;
+      this.logger.info(`Artifact ${res.id} uploaded successfully.`);
+      return res.id ?? 0;
     } catch (error) {
-      this.logger.error(`uploadArtifact: Action failed: ${error instanceof Error ? error.message : String(error)}`);
-      throw error; // Re-throw to allow caller to handle
+      this.logger.error(`uploadArtifact: ${error instanceof Error ? error.message : String(error)}`);
+      return 0;
     }
   };
 
