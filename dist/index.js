@@ -52662,14 +52662,14 @@ GitHubClient.getWorkflowRunArtifacts = async (workflowRunId) => {
     _a.logger.debug(`getWorkflowRunArtifacts: run_id='${workflowRunId}' ...`);
     return await _a.octokit.paginate(_a.octokit.rest.actions.listWorkflowRunArtifacts, { ..._owner_repo, run_id: workflowRunId, per_page: 100 }, response => response.data);
 };
-GitHubClient.uploadArtifact = async (parentPath, runResXmlfileFullPath, artifactName = "runresults") => {
+GitHubClient.uploadArtifact = async (runResXmlfileFullPath, artifactName = "artifact1") => {
     try {
-        _a.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}', parentPath=[${parentPath}] ...`);
+        _a.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}' ...`);
         (0, utils_1.checkFileExists)(runResXmlfileFullPath);
         //const uniqueArtifactName = `${artifactName}${Date.now()}`; // Ensure unique name
         _a.logger.debug(`Uploading artifact ${artifactName} ...`);
         const artifactClient = (0, artifact_1.create)();
-        const uploadResponse = await artifactClient.uploadArtifact(artifactName, [runResXmlfileFullPath], parentPath, { continueOnError: false } // Stop on error
+        const uploadResponse = await artifactClient.uploadArtifact(artifactName, [runResXmlfileFullPath], path.dirname(runResXmlfileFullPath), { continueOnError: false } // Stop on error
         );
         _a.logger.info(`Artifact ${uploadResponse.artifactName} uploaded successfully.`);
         return uploadResponse.artifactName;
@@ -52931,9 +52931,10 @@ async function run() {
             logger.debug(`Artifact: ${artifact.name}, id=${artifact.id}`);
         }
         const dir = config_1.config.workPath;
-        await githubClient_1.default.uploadArtifact(process.cwd(), 'C:\\Plugins\\GitHub\\runner_ufto-tests\\_work\\ufto-tests\\ufto-tests\\test.txt', "runresults10");
-        await githubClient_1.default.uploadArtifact(dir, 'C:\\Plugins\\GitHub\\runner_ufto-tests\\_work\\ufto-tests\\test.txt', "runresults20");
-        await githubClient_1.default.uploadArtifact(dir, path_1.default.join(dir, "___mbt", 'junitResult.xml'), "runresults30");
+        logger.debug(`Runner workspace: ${dir}`);
+        await githubClient_1.default.uploadArtifact(path_1.default.join(process.cwd(), 'test.txt'), "artifact1");
+        await githubClient_1.default.uploadArtifact(path_1.default.join(dir, 'test.txt'), "artifact2");
+        await githubClient_1.default.uploadArtifact(path_1.default.join(dir, "___mbt", 'junitResult.xml'), "artifact3");
         //await handleCurrentEvent();
     }
     catch (error) {

@@ -114,9 +114,9 @@ export default class GitHubClient {
     );
   };
 
-  public static uploadArtifact = async (parentPath: string, runResXmlfileFullPath: string, artifactName: string = "runresults"): Promise<string> => {
+  public static uploadArtifact = async (runResXmlfileFullPath: string, artifactName: string = "artifact1"): Promise<string> => {
     try {
-      this.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}', parentPath=[${parentPath}] ...`);
+      this.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}' ...`);
 
       checkFileExists(runResXmlfileFullPath);
 
@@ -124,7 +124,7 @@ export default class GitHubClient {
       this.logger.debug(`Uploading artifact ${artifactName} ...`);
       const artifactClient: ArtifactClient = create();
       const uploadResponse = await artifactClient.uploadArtifact(artifactName, [runResXmlfileFullPath],
-        parentPath,
+        path.dirname(runResXmlfileFullPath),
         { continueOnError: false } // Stop on error
       );
 
