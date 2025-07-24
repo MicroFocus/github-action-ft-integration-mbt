@@ -113,7 +113,7 @@ export default class GitHubClient {
     );
   };
 
-  public static uploadArtifact = async (parentPath: string, paths: string[], artifactName: string = "ft_reports", skipInvalidPaths: boolean = true): Promise<string> => {
+  public static uploadArtifact = async (parentPath: string, paths: string[], artifactName: string = "reports", skipInvalidPaths: boolean = true): Promise<string> => {
     try {
       let filesToUpload: string[] = [];
 
