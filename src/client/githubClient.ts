@@ -118,7 +118,7 @@ export default class GitHubClient {
     try {
       this.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}' ...`);
 
-      checkFileExists(runResXmlfileFullPath);
+      await checkFileExists(runResXmlfileFullPath);
 
       //const uniqueArtifactName = `${artifactName}${Date.now()}`; // Ensure unique name
       this.logger.debug(`Uploading artifact ${artifactName} ...`);
@@ -131,7 +131,7 @@ export default class GitHubClient {
       this.logger.info(`Artifact ${uploadResponse.artifactName} uploaded successfully.`);
       return uploadResponse.artifactName;
     } catch (error) {
-      this.logger.error(`uploadArtifact: Action failed: ${error instanceof Error ? error.message : String(error)}`);
+      this.logger.error(`uploadArtifact: ${error instanceof Error ? error.message : String(error)}`);
       //throw error; // Re-throw to allow caller to handle
       return "";
     }

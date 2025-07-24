@@ -52665,7 +52665,7 @@ GitHubClient.getWorkflowRunArtifacts = async (workflowRunId) => {
 GitHubClient.uploadArtifact = async (runResXmlfileFullPath, artifactName = "artifact1") => {
     try {
         _a.logger.debug(`uploadArtifact: '${runResXmlfileFullPath}' ...`);
-        (0, utils_1.checkFileExists)(runResXmlfileFullPath);
+        await (0, utils_1.checkFileExists)(runResXmlfileFullPath);
         //const uniqueArtifactName = `${artifactName}${Date.now()}`; // Ensure unique name
         _a.logger.debug(`Uploading artifact ${artifactName} ...`);
         const artifactClient = (0, artifact_1.create)();
@@ -52675,7 +52675,7 @@ GitHubClient.uploadArtifact = async (runResXmlfileFullPath, artifactName = "arti
         return uploadResponse.artifactName;
     }
     catch (error) {
-        _a.logger.error(`uploadArtifact: Action failed: ${error instanceof Error ? error.message : String(error)}`);
+        _a.logger.error(`uploadArtifact: ${error instanceof Error ? error.message : String(error)}`);
         //throw error; // Re-throw to allow caller to handle
         return "";
     }
