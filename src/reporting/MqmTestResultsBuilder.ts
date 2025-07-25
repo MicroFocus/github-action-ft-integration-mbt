@@ -4,6 +4,7 @@ import { create } from 'xmlbuilder';
 import { TestResult } from './TestResult';
 import { Logger } from '../utils/logger';
 import { BuildInfo } from './interfaces';
+import { config } from '../config/config';
 
 const logger = new Logger('MqmTestResultsBuilder');
 
@@ -26,11 +27,13 @@ export class MqmTestResultsBuilder {
   }
 
   public async invoke(): Promise<void> {
-    //const xmlData = await fs.readFile(this.junitResFilePath, 'utf-8');
     try {
       logger.debug(`invoke: Processing JUnit test results ...`);
 
-      const iterator = new JUnitXmlIterator(this.buildStarted, this.runResultsFilesMap);
+      const repoUrl = config.repoUrl.replace(/\.git$/, '');
+      const externalURL = `${repoUrl}/actions/runs/${this.buildInfo.buildId}/artifacts/${this.buildInfo.artifactId}`;
+
+      const iterator = new JUnitXmlIterator(externalURL, this.buildStarted, this.runResultsFilesMap);
       await iterator.processXmlResult(this.junitResult);
       const testResults = iterator.getTestResults();
 
