@@ -33,6 +33,9 @@
   },
   "overrides": {
     "@octokit/endpoint": "9.0.6",
+    "@octokit/request": "10.0.3",
+    "@octokit/plugin-paginate-rest": "13.1.1",
+    "@octokit/request-error": "7.0.0",
     "undici": "5.29.0"
   },
   "devDependencies": {

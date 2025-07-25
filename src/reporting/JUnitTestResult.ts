@@ -13,8 +13,6 @@ export class JUnitTestResult implements XmlWritableTestResult {
   public result: string;
   public duration: number;
   public testError: any | null;
-  //public buildId: number;
-  //public runFolder: string;
   public runId: number | null;
   public externalAssets: string;
 
@@ -30,8 +28,6 @@ export class JUnitTestResult implements XmlWritableTestResult {
     externalReportUrl: string,
     description: string,
     resultData: any[],
-    //buildId: number,
-    //runFolder: string,
     runId: number | null,
     externalAssets: string
   ) {
@@ -46,8 +42,6 @@ export class JUnitTestResult implements XmlWritableTestResult {
     this.result = result;
     this.duration = duration;
     this.testError = testError;
-    //this.buildId = buildId;
-    //this.runFolder = runFolder;
     this.runId = runId;
     this.externalAssets = externalAssets;
   }
