@@ -46,7 +46,7 @@ const logger: Logger = new Logger('mbtDiscoveryResultDispatcher');
 
 const getAutoDiscoveredFolder = async (executorId: number): Promise<BaseFolder> => {
   let autoDiscoveredFolder: BaseFolder | null = await OctaneClient.getRunnerDedicatedFolder(executorId);
-  if (autoDiscoveredFolder == null) // TODO check if this is the expected behavior
+  if (autoDiscoveredFolder == null)
     autoDiscoveredFolder = await OctaneClient.getGitMirrorFolder();
 
   if (autoDiscoveredFolder == null) {
@@ -185,6 +185,14 @@ const createUnitParam = (param: UftoTestParam, unit: UnitBody): UnitParamBody =>
   };
 }
 
+/* If there is no parent folder, but we have an id, that means we are creating the model for an old unit which exists in Octane
+ but should be updated anyway to update the test runner field for example
+ this is the common case when a runner was deleted, then later on recreated with the same repository, under a different runner name.
+
+ If this unit entity is for a unit which already exists in Octane, and was not moved, the folder shouldn't be updated so don't pass any value
+ and in this case there will be no parent folder during sync (as we are not pulling all the folders on each sync,
+ only the new ones to push them to Octane)
+*/
 const buildUnit = (executorId: number, scmRepositoryId: number, action: UftoTestAction, parentId: number|null, unitParams: UnitParamBody[] | null = null): UnitBody => {
   if (!parentId && !action.id) {
     throw new Error("Received null parent folder, when trying to create a new unit entity");
@@ -194,6 +202,7 @@ const buildUnit = (executorId: number, scmRepositoryId: number, action: UftoTest
     ... (parentId ? { parent: { id: parentId, type: "model_item" } } : {}),
     ... (action.description ? { description: action.description } : {}),
     name: !action.logicalName || action.logicalName.startsWith("Action") ? `${action.testName}:${action.name}` : action.logicalName,
+    test_runner: { id: executorId, type: "executor" },
     repository_path: action.repositoryPath
   };
   if (action.id) {
@@ -205,7 +214,6 @@ const buildUnit = (executorId: number, scmRepositoryId: number, action: UftoTest
       type: EntityConstants.MbtUnit.ENTITY_NAME,
       subtype: EntityConstants.MbtUnit.ENTITY_SUBTYPE,
       automation_status: { id: "list_node.automation_status.automated", type: LIST_NODE },
-      test_runner: { id: executorId, type: "executor" },
       scm_repository: { id: scmRepositoryId, type: "scm_repository" }
     }
   }

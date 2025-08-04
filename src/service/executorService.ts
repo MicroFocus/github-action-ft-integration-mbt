@@ -48,7 +48,7 @@ const getCreateOrUpdateTestRunner = async (name: string, ciServerId: number, ciJ
   const exe = await OctaneClient.getExecutor(name, subType);
 
   if (exe) {
-    if (exe.ci_server && exe.ci_job) {
+    if (exe.ci_server?.id === ciServerId && exe.ci_job?.id === ciJob.id) {
       return exe;
     } else { //TODO should we check scm_repository_roots.url too?
       return await OctaneClient.updateExecutor(exe.id, ciServerId, ciJob);
