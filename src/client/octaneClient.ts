@@ -37,7 +37,7 @@ import CiExecutor from '../dto/octane/general/CiExecutor';
 import CiExecutorBody from '../dto/octane/general/bodies/CiExecutorBody';
 import CiServer from '../dto/octane/general/CiServer';
 import CiServerInfo from '../dto/octane/general/CiServerInfo';
-import { escapeQueryVal } from '../utils/utils';
+import { escapeQueryVal, isVersionGreater } from '../utils/utils';
 import { EntityConstants } from '../dto/octane/general/EntityConstants';
 import FolderBody from '../dto/octane/general/bodies/FolderBody';
 import Folder, { BaseFolder } from '../dto/octane/general/Folder';
@@ -518,7 +518,7 @@ export default class OctaneClient {
         res.data?.length && entities.push(...res.data);
       } catch (error: any) {
         this.logger.error(`Error fetching entities from collection '${collectionName}': ${error.message}`);
-        throw error; // Re-throw the error to be handled by the caller
+        throw error;
       }
     } while (go);
     return entities;
@@ -531,7 +531,7 @@ export default class OctaneClient {
     const partitions: T[][] = this.partition(entries, MAX_LIMIT);
     for (const entities of partitions) {
       const res = await this.octane.create(collectionName, entities).fields(...fields).execute();
-      res.data?.length && results.push(...res.data); // TODO debug to see if res or res.data contains the content
+      res.data?.length && results.push(...res.data);
     }
     return results;
   }
@@ -543,7 +543,7 @@ export default class OctaneClient {
     const partitions: T[][] = this.partition(entries, MAX_LIMIT);
     for (const entities of partitions) {
       const res = await this.octane.updateBulk(collectionName, entities).fields(...fields).execute();
-      res.data?.length && results.push(...res.data); // TODO debug to see if res or res.data contains the content
+      res.data?.length && results.push(...res.data);
     }
     return results;
   }
@@ -560,5 +560,17 @@ export default class OctaneClient {
       result.push(array.slice(i, i + size));
     }
     return result;
+  }
+
+  public static updatePluginVersionIfNeeded = async (instanceId: String, version: string): Promise<void> => {
+    this.logger.info(`Current CI Server version: '${version}'`);
+    if (!version || isVersionGreater(this.PLUGIN_VERSION, version)) {
+      this.logger.info(`Updating CI Server version to: '${this.PLUGIN_VERSION}'`);
+      try {
+        await this.updatePluginVersion(instanceId);
+      } catch (err) {
+        this.logger.error(`updatePluginVersionIfNeeded: Failed to update plugin version: ${(err as Error).message}`);
+      }
+    }
   }
 }

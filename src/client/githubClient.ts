@@ -139,7 +139,7 @@ export default class GitHubClient {
       return res.id ?? 0;
     } catch (error) {
       this.logger.error(`uploadArtifact: ${error instanceof Error ? error.message : String(error)}`);
-      return 0;
+      return -1;
     }
   };
 

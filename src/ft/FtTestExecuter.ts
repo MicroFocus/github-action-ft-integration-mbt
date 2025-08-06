@@ -12,7 +12,7 @@ const logger = new Logger('FtTestExecuter');
 export default class FtTestExecuter {
   public static async process(testInfos: UftTestInfo[]): Promise<{ exitCode: ExitCode; resFullPath: string }> {
     logger.debug(`process: testInfos.length=${testInfos.length} ...`);
-    await checkReadWriteAccess(config.workPath);
+    await checkReadWriteAccess(config.runnerWorkspacePath);
     const suffix = getTimestamp();
     const { propsFullPath, resFullPath } = await this.createPropsFile(suffix, testInfos);
     await checkFileExists(propsFullPath);
@@ -23,9 +23,9 @@ export default class FtTestExecuter {
   }
 
   private static async createPropsFile(suffix: string, testInfos: UftTestInfo[]): Promise<{ propsFullPath: string, resFullPath: string }> {
-    const propsFullPath = path.join(config.workPath, `props_${suffix}.txt`);
-    const resFullPath = path.join(config.workPath, `results_${suffix}.xml`);
-    const mtbxFullPath = path.join(config.workPath, `testsuite_${suffix}.mtbx`);
+    const propsFullPath = path.join(config.runnerWorkspacePath, `props_${suffix}.txt`);
+    const resFullPath = path.join(config.runnerWorkspacePath, `results_${suffix}.xml`);
+    const mtbxFullPath = path.join(config.runnerWorkspacePath, `testsuite_${suffix}.mtbx`);
 
     logger.debug(`createPropsFile: [${propsFullPath}] ...`);
     await this.createMtbxFile(mtbxFullPath, testInfos);
@@ -58,7 +58,7 @@ export default class FtTestExecuter {
       //const idx = i + 1;
       const runId = testInfo.runId;
       const name = testInfo.testName;
-      const fullPath = path.join(config.workPath, FTL._MBT, `${runId}`, name);
+      const fullPath = path.join(config.runnerWorkspacePath, FTL._MBT, `${runId}`, name);
       xml += `\t<Test runid="${runId}" name="${name}" path="${fullPath}" />\n`;
     });
     xml += `</Mtbx>`;

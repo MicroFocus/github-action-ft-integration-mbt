@@ -148,28 +148,25 @@ const extractWorkflowFileName = (workflowPath: string): string => {
   return path.basename(workflowPath);
 };
 
-const isVersionGreaterOrEqual = (
-  version1: string,
-  version2: string
-): boolean => {
-  if (!version1 || !version2) {
+const isVersionGreater = (v1: string, v2: string): boolean => {
+  if (!v1 || !v2) {
     return false;
   }
 
-  const version1Array = version1.split('.');
-  const version2Array = version2.split('.');
+  const v1Arr = v1.split('.');
+  const v2Arr = v2.split('.');
 
-  for (let i = 0; i < version1Array.length && i < version2Array.length; i++) {
-    const version1Part = parseInt(version1Array[i]);
-    const version2Part = parseInt(version2Array[i]);
+  for (let i = 0; i < v1Arr.length && i < v2Arr.length; i++) {
+    const v1Part = parseInt(v1Arr[i]);
+    const v2Part = parseInt(v2Arr[i]);
 
-    if (version1Part !== version2Part) {
-      return version1Part > version2Part;
+    if (v1Part !== v2Part) {
+      return v1Part > v2Part;
     }
   }
 
-  return version1Array.length >= version2Array.length;
-};
+  return v1Arr.length > v2Arr.length;
+}
 
 const sleep = async (milis: number): Promise<void> => {
   return new Promise<void>(resolve => {
@@ -441,4 +438,4 @@ const getLastFolderFromPath = (dirPath: string): string => {
   }
 }
 
-export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreaterOrEqual, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, getTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists, escapeXML, parseTimeToFloat, getLastFolderFromPath };
+export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreater, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, getTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists, escapeXML, parseTimeToFloat, getLastFolderFromPath };

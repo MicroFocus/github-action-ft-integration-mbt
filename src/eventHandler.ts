@@ -199,7 +199,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
       logger.error(`handleExecutorEvent: Could not find CI server with instanceId: ${ciServerInstanceId}`);
       return ExitCode.Aborted;
     };
-    // TODO updatePluginVersionIfNeeded ?
+    OctaneClient.updatePluginVersionIfNeeded(ciServerInstanceId, ciServer.plugin_version);
     const causes = [
       {
         buildCiId: `${workflowRunId}`,
