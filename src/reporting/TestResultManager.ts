@@ -31,7 +31,7 @@ export class TestResultManager {
 
   //TODO add junitResult.xml, mqmTests.xml and eventually other files (results_###.xml ?)
   private static async buildArtifacts(buildId: number, mbtPath: string, runResultsFilesMap: Map<number, string>): Promise<Map<number, number>> {
-    logger.debug(`buildArtifact: buildId=${buildId} ...`);
+    logger.debug(`buildArtifacts: buildId=${buildId} ...`);
 
     const uploadPromises = Array.from(runResultsFilesMap.entries()).map(async ([runId, filePath]) => {
       const dir = path.dirname(filePath);
@@ -39,14 +39,28 @@ export class TestResultManager {
       return { runId, artifactId };
     });
 
-    const results = await Promise.all(uploadPromises);
+    const results = await Promise.allSettled(uploadPromises);
+    const runId2ArtifactIdMap = new Map<number, number>();
 
-    const runIdToArtifactIdMap = new Map<number, number>();
-    for (const { runId, artifactId } of results) {
-      runIdToArtifactIdMap.set(runId, artifactId);
+    let successes = 0;
+    let errors = 0;
+
+    for (const [index, result] of results.entries()) {
+      if (result.status === 'fulfilled') {
+        const { runId, artifactId } = result.value;
+        runId2ArtifactIdMap.set(runId, artifactId);
+        successes++;
+      } else {
+        errors++;
+        const runId = Array.from(runResultsFilesMap.keys())[index];
+        const error = result.reason;
+        logger.error(`Failed to upload artifact for runId ${runId}: ${error.message}`, error);
+      }
     }
 
-    return runIdToArtifactIdMap;
+    logger.info(`buildArtifacts completed: ${successes} successful uploads, ${errors} failed uploads`);
+
+    return runId2ArtifactIdMap;
   }
 
   private static async collectRunResultsXmlFiles(mbtPath: string): Promise<Map<number, string>> {
