@@ -12,6 +12,7 @@ export default class FTL {
   public static readonly FileSystem = "FileSystem";
   public static readonly MBT = "MBT";
   public static readonly _MBT = "___mbt";
+  public static readonly _TMP = "___tmp";
   public static async ensureToolExists(): Promise<string> {
     logger.debug(`ensureToolExists: Checking for ${HP_TL_EXE} ...`);
     const runnerWorkspace = config.runnerWorkspacePath;

@@ -23,9 +23,9 @@ export default class FtTestExecuter {
   }
 
   private static async createPropsFile(suffix: string, testInfos: UftTestInfo[]): Promise<{ propsFullPath: string, resFullPath: string, mtbxFullPath: string }> {
-    const propsFullPath = path.join(config.runnerWorkspacePath, `props_${suffix}.txt`);
-    const resFullPath = path.join(config.runnerWorkspacePath, `results_${suffix}.xml`);
-    const mtbxFullPath = path.join(config.runnerWorkspacePath, `testsuite_${suffix}.mtbx`);
+    const propsFullPath = path.join(config.runnerWorkspacePath, FTL._TMP, `props_${suffix}.txt`);
+    const resFullPath = path.join(config.runnerWorkspacePath, FTL._TMP, `results_${suffix}.xml`);
+    const mtbxFullPath = path.join(config.runnerWorkspacePath, FTL._TMP, `testsuite_${suffix}.mtbx`);
 
     logger.debug(`createPropsFile: [${propsFullPath}] ...`);
     await this.createMtbxFile(mtbxFullPath, testInfos);

@@ -56,7 +56,7 @@ export default class MbtPreTestExecuter {
       props[`datableParams${idx}`] = testInfo.encodedIterationsStr;
     }));
 
-    const mbtPropsFullPath = path.join(wsDir, `mbt_props_${getTimestamp()}.txt`);
+    const mbtPropsFullPath = path.join(wsDir, FTL._TMP, `mbt_props_${getTimestamp()}.txt`);
 
     try {
       await fs.writeFile(mbtPropsFullPath, Object.entries(props).map(([k, v]) => `${k}=${v}`).join('\n'));

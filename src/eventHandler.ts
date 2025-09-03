@@ -57,6 +57,7 @@ import FtTestExecuter from './ft/FtTestExecuter';
 import { CiCausesType, Result } from './dto/octane/events/CiTypes';
 import { publishResultsToOctane } from './service/testResultsService';
 import * as fs from 'fs';
+import FTL from './ft/FTL';
 
 const logger: Logger = new Logger('eventHandler');
 const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId', 'testsToRun'];
@@ -223,7 +224,15 @@ export const handleCurrentEvent = async (): Promise<void> => {
       mbtTestInfos.push(mbtTestInfo);
       logger.debug(JSON.stringify(mbtTestInfo, null, 2));
     };
-    await deleteOldPropsFiles();
+
+    const tmpFullPath = path.join(config.runnerWorkspacePath, FTL._TMP);
+    if (fs.existsSync(tmpFullPath)) {
+      await cleanupTempFolder(tmpFullPath);
+    } else {
+      logger.debug(`handleExecutorEvent: creating ${tmpFullPath} ...`);
+      await fs.promises.mkdir(tmpFullPath, { recursive: true });
+    }
+
     const { ok, mbtPropsFullPath }  = await MbtPreTestExecuter.preProcess(mbtTestInfos);
     if (ok) {
       const { exitCode, resFullPath, propsFullPath, mtbxFullPath } = await FtTestExecuter.process(mbtTestInfos);
@@ -244,35 +253,33 @@ export const handleCurrentEvent = async (): Promise<void> => {
   }
 };
 
-const deleteOldPropsFiles = async () => {
-  logger.debug(`deleteOldPropsFiles: ...`);
-  const regexes = [
-    /^props_\d+\.txt$/,
-    /^testsuite_\d+\.mtbx$/,
-    /^mbt_props_\d+\.txt$/
-  ];
+const cleanupTempFolder = async (tmpFullPath: string) => {
+  logger.debug(`cleanupTempFolder: ${tmpFullPath}`);
 
-  let files: string[];
   try {
-    files = await fs.promises.readdir(config.runnerWorkspacePath);
-  } catch (err) {
-    logger.warn(`deleteOldPropsFiles: Failed to read directory: ${config.runnerWorkspacePath}. Error: ${err}`);
-    return;
+    // Check if the path exists and is a directory
+    const stats = await fs.promises.stat(tmpFullPath);
+    if (!stats.isDirectory()) {
+      logger.warn(`cleanupTempFolder: ${tmpFullPath} is not a directory`);
+      return;
+    }
+
+    const items = await fs.promises.readdir(tmpFullPath, { withFileTypes: true });
+
+    // Delete all items in parallel
+    await Promise.all(
+      items.map(async (item) => {
+        const fullPath = path.join(tmpFullPath, item.name);
+        try {
+          await fs.promises.rm(fullPath, { recursive: true, force: true });
+        } catch (error) {
+          logger.warn(`cleanupTempFolder: Failed to delete ${fullPath}: ${error}`);
+        }
+      })
+    );
+  } catch (error) {
+    logger.warn(`cleanupTempFolder: ${error}`);
   }
-
-  const deletions = files
-    .filter(file => regexes.some(re => re.test(file)))
-    .map(async file => {
-      const filePath = path.join(config.runnerWorkspacePath, file);
-      try {
-        await fs.promises.unlink(filePath);
-        logger.debug(`deleteOldPropsFiles: Deleted file: ${filePath}`);
-      } catch (err) {
-        logger.warn(`deleteOldPropsFiles: Failed to delete file: ${filePath}. Error: ${err}`);
-      }
-    });
-
-  await Promise.all(deletions);
 };
 
 const isMinSyncIntervalElapsed = async (minSyncInterval: number) => {
