@@ -3,6 +3,7 @@ import { ExitCode } from '../ft/ExitCode';
 import * as fsp from 'fs/promises';
 import path from "path";
 import { Logger } from "../utils/logger";
+import { config } from '../config/config';
 
 const HP_TL_EXE = 'HpToolsLauncher.exe';
 const logger = new Logger("FTL");
@@ -13,7 +14,7 @@ export default class FTL {
   public static readonly _MBT = "___mbt";
   public static async ensureToolExists(): Promise<string> {
     logger.debug(`ensureToolExists: Checking for ${HP_TL_EXE} ...`);
-    const runnerWorkspace = process.env.RUNNER_WORKSPACE;
+    const runnerWorkspace = config.runnerWorkspacePath;
     const actionRepo = process.env.GITHUB_ACTION_REPOSITORY;
     const actionRef = process.env.GITHUB_ACTION_REF;
 
@@ -32,7 +33,7 @@ export default class FTL {
     }
 
     // Extract base runner path (remove the repo name from the end)
-    const runnerRoot = path.resolve(runnerWorkspace!, '..'); // Go up one level
+    const runnerRoot = path.resolve(runnerWorkspace, '..'); // Go up one level
     const [owner, repo] = actionRepo!.split('/');
     const actionBinPath = path.join(runnerRoot, '_actions', owner, repo, actionRef!, 'bin');
     const exeFullPath = path.join(actionBinPath, HP_TL_EXE);

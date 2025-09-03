@@ -56,6 +56,7 @@ import { ExitCode } from './ft/ExitCode';
 import FtTestExecuter from './ft/FtTestExecuter';
 import { CiCausesType, Result } from './dto/octane/events/CiTypes';
 import { publishResultsToOctane } from './service/testResultsService';
+import * as fs from 'fs';
 
 const logger: Logger = new Logger('eventHandler');
 const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId', 'testsToRun'];
@@ -222,12 +223,14 @@ export const handleCurrentEvent = async (): Promise<void> => {
       mbtTestInfos.push(mbtTestInfo);
       logger.debug(JSON.stringify(mbtTestInfo, null, 2));
     };
-    const ok = await MbtPreTestExecuter.preProcess(mbtTestInfos);
+    await deleteOldPropsFiles();
+    const { ok, mbtPropsFullPath }  = await MbtPreTestExecuter.preProcess(mbtTestInfos);
     if (ok) {
-      const { exitCode, resFullPath } = await FtTestExecuter.process(mbtTestInfos);
+      const { exitCode, resFullPath, propsFullPath, mtbxFullPath } = await FtTestExecuter.process(mbtTestInfos);
       const res = (exitCode === ExitCode.Passed ? Result.SUCCESS : (exitCode === ExitCode.Unstable ? Result.UNSTABLE : Result.FAILURE));
       await publishResultsToOctane(ciServerInstanceId, ciId, workflowRunId, resFullPath);
       await sendFinishEvent(res, true);
+      await GitHubClient.uploadArtifact(config.runnerWorkspacePath, [mbtPropsFullPath, propsFullPath, mtbxFullPath], `props_mtbx`);
       logger.info(`handleExecutorEvent: Finished with exitCode=${exitCode}.`);
       return exitCode;
     } else {
@@ -239,6 +242,37 @@ export const handleCurrentEvent = async (): Promise<void> => {
       await sendExecutorFinishEvent(executorName, ciId, parentCiId, `${workflowRunId}`, `${workflowRunNum}`, branch!, startTime, ciServer?.url!, causes, execParams, ciServerInstanceId, testResExpected, res);
     }
   }
+};
+
+const deleteOldPropsFiles = async () => {
+  logger.debug(`deleteOldPropsFiles: ...`);
+  const regexes = [
+    /^props_\d+\.txt$/,
+    /^testsuite_\d+\.mtbx$/,
+    /^mbt_props_\d+\.txt$/
+  ];
+
+  let files: string[];
+  try {
+    files = await fs.promises.readdir(config.runnerWorkspacePath);
+  } catch (err) {
+    logger.warn(`deleteOldPropsFiles: Failed to read directory: ${config.runnerWorkspacePath}. Error: ${err}`);
+    return;
+  }
+
+  const deletions = files
+    .filter(file => regexes.some(re => re.test(file)))
+    .map(async file => {
+      const filePath = path.join(config.runnerWorkspacePath, file);
+      try {
+        await fs.promises.unlink(filePath);
+        logger.debug(`deleteOldPropsFiles: Deleted file: ${filePath}`);
+      } catch (err) {
+        logger.warn(`deleteOldPropsFiles: Failed to delete file: ${filePath}. Error: ${err}`);
+      }
+    });
+
+  await Promise.all(deletions);
 };
 
 const isMinSyncIntervalElapsed = async (minSyncInterval: number) => {

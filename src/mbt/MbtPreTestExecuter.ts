@@ -7,23 +7,24 @@ import { TspParseError } from '../utils/TspParseError';
 import { MbtScriptData, MbtTestInfo } from './MbtTestData';
 import { ExitCode } from '../ft/ExitCode';
 import FTL from '../ft/FTL';
+import { config } from '../config/config';
 
 const logger = new Logger('MbtPreTestExecuter');
 
 export default class MbtPreTestExecuter {
-  public static async preProcess(mbtTestInfos: MbtTestInfo[]): Promise<boolean> {
+  public static async preProcess(mbtTestInfos: MbtTestInfo[]): Promise<{ ok: boolean, mbtPropsFullPath: string }> {
     logger.debug(`preProcess: mbtTestInfos.length=${mbtTestInfos.length} ...`);
     const mbtPropsFullPath = await this.createMbtPropsFile(mbtTestInfos);
     await checkFileExists(mbtPropsFullPath);
     const actionBinPath = await FTL.ensureToolExists();
     const exitCode = await FTL.runTool(actionBinPath, mbtPropsFullPath);
     logger.debug(`preProcess: exitCode=${exitCode}`);
-    return exitCode === ExitCode.Passed;
+    return { ok: (exitCode === ExitCode.Passed), mbtPropsFullPath };
   }
 
   private static async createMbtPropsFile(testInfos: MbtTestInfo[]): Promise<string> {
     logger.debug(`createMbtPropsFile: testInfos.length=${testInfos.length} ...`);
-    const wsDir = process.env.RUNNER_WORKSPACE; // e.g., C:\GitHub_runner\_work\ufto-tests\
+    const wsDir = config.runnerWorkspacePath;
     if (!wsDir) {
       const err = `Missing environment variable: RUNNER_WORKSPACE`;
       logger.error(err);

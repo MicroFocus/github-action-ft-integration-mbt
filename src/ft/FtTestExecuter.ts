@@ -10,19 +10,19 @@ import { config } from '../config/config';
 const logger = new Logger('FtTestExecuter');
 
 export default class FtTestExecuter {
-  public static async process(testInfos: UftTestInfo[]): Promise<{ exitCode: ExitCode; resFullPath: string }> {
+  public static async process(testInfos: UftTestInfo[]): Promise<{ exitCode: ExitCode, resFullPath: string, propsFullPath: string, mtbxFullPath: string }> {
     logger.debug(`process: testInfos.length=${testInfos.length} ...`);
     await checkReadWriteAccess(config.runnerWorkspacePath);
     const suffix = getTimestamp();
-    const { propsFullPath, resFullPath } = await this.createPropsFile(suffix, testInfos);
+    const { propsFullPath, resFullPath, mtbxFullPath } = await this.createPropsFile(suffix, testInfos);
     await checkFileExists(propsFullPath);
     const actionBinPath = await FTL.ensureToolExists();
     const exitCode = await FTL.runTool(actionBinPath, propsFullPath);
     logger.debug(`process: exitCode=${exitCode}`);
-    return { exitCode, resFullPath: resFullPath };
+    return { exitCode, resFullPath, propsFullPath, mtbxFullPath };
   }
 
-  private static async createPropsFile(suffix: string, testInfos: UftTestInfo[]): Promise<{ propsFullPath: string, resFullPath: string }> {
+  private static async createPropsFile(suffix: string, testInfos: UftTestInfo[]): Promise<{ propsFullPath: string, resFullPath: string, mtbxFullPath: string }> {
     const propsFullPath = path.join(config.runnerWorkspacePath, `props_${suffix}.txt`);
     const resFullPath = path.join(config.runnerWorkspacePath, `results_${suffix}.xml`);
     const mtbxFullPath = path.join(config.runnerWorkspacePath, `testsuite_${suffix}.mtbx`);
@@ -48,7 +48,7 @@ export default class FtTestExecuter {
       throw new Error('Failed when creating properties file');
     }
 
-    return { propsFullPath, resFullPath };
+    return { propsFullPath, resFullPath, mtbxFullPath };
   }
 
   private static async createMtbxFile(mtbxFullPath: string, testInfos: UftTestInfo[]): Promise<string> {
