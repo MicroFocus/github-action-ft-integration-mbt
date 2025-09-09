@@ -61,7 +61,7 @@ const _headers = { HPECLIENTTYPE: 'HPE_CI_CLIENT' };
 export default class OctaneClient {
   private static logger: Logger = new Logger('octaneClient');
   private static GITHUB_ACTIONS = 'github_actions';
-  private static PLUGIN_VERSION = '25.4.1';
+  private static PLUGIN_VERSION = '25.3.1';
   private static octane: Octane = new Octane({
     server: config.octaneUrl,
     sharedSpace: config.octaneSharedSpace,
