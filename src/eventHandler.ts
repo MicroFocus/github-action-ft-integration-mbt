@@ -145,9 +145,9 @@ export const handleCurrentEvent = async (): Promise<void> => {
         if (!isIntervalElapsed) {
           const msg = `The minimum time interval of ${minSyncInterval} minutes has not yet elapsed since the last sync.`;
           logger.warn(msg);
-          setOutput('should_run', 'false')
-          setOutput('reason', msg)
-          notice('Precheck: nothing to do; downstream job will be skipped.')
+          setOutput('should_run', 'false');
+          setOutput('reason', msg);
+          notice('Precheck: nothing to do; downstream job will be skipped.');
           return;
         }
       }
