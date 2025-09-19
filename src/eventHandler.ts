@@ -280,7 +280,7 @@ const cleanupTempFolder = async (tmpFullPath: string) => {
   }
 };
 
-const isMinSyncIntervalElapsed = async (minSyncInterval: number) => {
+const isMinSyncIntervalElapsed = async (minSyncInterval: number): Promise<boolean> => {
   const lastSyncedTimestamp = await getSyncedTimestamp();
   const dtNow = new Date();
   logger.debug(`Current Time: ${dtNow.toISOString() }`);
