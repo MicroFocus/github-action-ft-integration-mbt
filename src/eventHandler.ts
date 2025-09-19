@@ -27,7 +27,7 @@
  * limitations under the License.
  */
 
-import {setOutput, notice } from '@actions/core';
+import { notice } from '@actions/core';
 import OctaneClient from './client/octaneClient';
 import { config } from './config/config';
 import ActionsEvent from './dto/github/ActionsEvent';
@@ -145,9 +145,8 @@ export const handleCurrentEvent = async (): Promise<void> => {
         if (!isIntervalElapsed) {
           const msg = `The minimum time interval of ${minSyncInterval} minutes has not yet elapsed since the last sync.`;
           logger.warn(msg);
-          setOutput('should_run', 'false');
-          setOutput('reason', msg);
-          notice(msg, { title: 'Run Skipped' });
+          notice(msg, { title: 'Run Canceled' });
+          await GitHubClient.cancelWorkflowRun();
           return;
         }
       }

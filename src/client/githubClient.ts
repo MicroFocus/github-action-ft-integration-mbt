@@ -30,16 +30,12 @@ import * as path from 'path';
 import * as fs from 'fs';
 import artifact from '@actions/artifact';
 import { getOctokit, context } from '@actions/github';
-import { ActionsJob } from '../dto/github/ActionsJob';
 import Commit from '../dto/github/Commit';
 import WorkflowRun from '../dto/github/WorkflowRun';
-import WorkflowRunStatus from '../dto/github/WorkflowRunStatus';
 import { Logger } from '../utils/logger';
 import FileContent from '../dto/github/FileContent';
 import * as core from '@actions/core';
 import { config } from '../config/config';
-import { checkFileExists } from '../utils/utils';
-
 
 const _owner_repo = { owner: config.owner, repo: config.repo };
 export default class GitHubClient {
@@ -75,29 +71,6 @@ export default class GitHubClient {
       throw error; // Re-throw to allow caller to handle
     }
   }
-
-  public static getWorkflowRunJobs = async (workflowRunId: number): Promise<ActionsJob[]> => {
-    this.logger.debug(`getWorkflowRunJobs: run_id='${workflowRunId}' ...`);
-
-    return await this.octokit.paginate(this.octokit.rest.actions.listJobsForWorkflowRun,
-      { ..._owner_repo, run_id: workflowRunId, per_page: 100 },
-      response => response.data
-    );
-  };
-
-  public static getJob = async (jobId: number): Promise<ActionsJob> => {
-    this.logger.debug(`getJob: job_id='${jobId}' ...`);
-    return (await this.octokit.rest.actions.getJobForWorkflowRun({ ..._owner_repo, job_id: jobId })).data;
-  };
-
-  public static getWorkflowRunsTriggeredBeforeByStatus = async (beforeTime: number, workflowId: number, status: WorkflowRunStatus): Promise<WorkflowRun[]> => {
-    this.logger.debug(`getWorkflowRunsTriggeredBeforeByStatus: beforeTime='${beforeTime}', workflow_id='${workflowId}', status='${status}' ...`);
-
-    return (await this.octokit.paginate(this.octokit.rest.actions.listWorkflowRuns,
-      { ..._owner_repo, workflow_id: workflowId, event: 'workflow_run', status, per_page: 100 },
-      response => response.data)
-    ).filter(run => new Date(run.run_started_at!).getTime() < beforeTime);
-  };
 
   public static getWorkflowRun = async (workflowRunId: number): Promise<WorkflowRun> => {
     this.logger.debug(`getWorkflowRun: run_id='${workflowRunId}' ...`);
@@ -167,42 +140,10 @@ export default class GitHubClient {
     ).data;
   };
 
-  public static getCommitIds = async (branch: string, since: Date): Promise<string[]> => {
-    const isoFormattedSince = since.toISOString();
-    this.logger.debug(`getCommitIds: since '${isoFormattedSince}' for branch '${branch}' ...`);
-
-    return <string[]>(await this.octokit.paginate(this.octokit.rest.repos.listCommits,
-      { ..._owner_repo, sha: branch, since: isoFormattedSince, per_page: 100 },
-      response => response.data
-    )
-    ).map(commit => commit.sha);
-  };
-
   public static getCommit = async (commitSha: string): Promise<Commit> => {
     this.logger.trace(`getCommit: ref='${commitSha}' ...`);
 
     return (await this.octokit.rest.repos.getCommit({ ..._owner_repo, ref: commitSha })).data;
-  };
-
-  public static getPullRequestCommitIds = async (pullRequestNumber: number): Promise<string[]> => {
-    this.logger.debug(`getPullRequestCommitIds: pull_number='${pullRequestNumber}' ...`);
-
-    return <string[]>(await this.octokit.paginate(this.octokit.rest.pulls.listCommits,
-      { ..._owner_repo, pull_number: pullRequestNumber }, response => response.data)).map(commit => commit.sha);
-  };
-
-  public static getDownloadLogsUrl = async (workflowRunId: number): Promise<string | undefined> => {
-    this.logger.info(`getDownloadLogsUrl: run_id='${workflowRunId}' ...`);
-
-    const response = await this.octokit.rest.actions.downloadWorkflowRunLogs({
-      ..._owner_repo, run_id: workflowRunId, archive_format: 'zip'
-    });
-
-    if (!response.url) {
-      this.logger.warn(`Couldn't get the location of the logs files for workflow with {run_id='${workflowRunId}'}...`);
-    }
-
-    return response.url;
   };
 
   public static getWorkflowFile = async (workflowFileName: string, branch?: string): Promise<FileContent> => {
@@ -214,4 +155,17 @@ export default class GitHubClient {
 
     return <FileContent>response.data;
   };
+
+  public static cancelWorkflowRun = async (): Promise<void> => {
+    this.logger.info(`cancelWorkflowRun: run_id='${context.runId}' ...`);
+    try {
+      await this.octokit.rest.actions.cancelWorkflowRun({
+        owner: config.owner,
+        repo: config.repo,
+        run_id: context.runId
+      });
+    } catch (e: any) {
+      this.logger.error(`Cancel request failed: ${e.message}`);
+    }
+  }
 }
