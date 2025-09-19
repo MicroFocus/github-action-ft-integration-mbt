@@ -27,6 +27,7 @@
  * limitations under the License.
  */
 
+import {setOutput, notice } from '@actions/core';
 import OctaneClient from './client/octaneClient';
 import { config } from './config/config';
 import ActionsEvent from './dto/github/ActionsEvent';
@@ -142,7 +143,11 @@ export const handleCurrentEvent = async (): Promise<void> => {
         logger.info(`minSyncInterval = ${minSyncInterval} minutes.`);
         const isIntervalElapsed = await isMinSyncIntervalElapsed(minSyncInterval);
         if (!isIntervalElapsed) {
-          logger.warn(`The minimum time interval of ${minSyncInterval} minutes has not yet elapsed since the last sync.`);
+          const msg = `The minimum time interval of ${minSyncInterval} minutes has not yet elapsed since the last sync.`;
+          logger.warn(msg);
+          setOutput('should_run', 'false')
+          setOutput('reason', msg)
+          notice('Precheck: nothing to do; downstream job will be skipped.')
           return;
         }
       }
