@@ -282,8 +282,10 @@ const cleanupTempFolder = async (tmpFullPath: string) => {
 
 const isMinSyncIntervalElapsed = async (minSyncInterval: number) => {
   const lastSyncedTimestamp = await getSyncedTimestamp();
-  const currentTimestamp = new Date().getTime();
-  const timeDiffMinutes = (currentTimestamp - lastSyncedTimestamp) / (60000);
+  const dtNow = new Date();
+  logger.debug(`Current Time: ${dtNow.toISOString() }`);
+  const timeDiffMinutes = (dtNow.getTime() - lastSyncedTimestamp) / (60000);
+  logger.debug(`Time since last sync: ${timeDiffMinutes.toFixed(2)} minutes.`);
   return timeDiffMinutes >= minSyncInterval;
 }
 
