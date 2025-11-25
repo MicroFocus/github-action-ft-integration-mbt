@@ -307,10 +307,10 @@ const doTestSync = async (discoveryRes: DiscoveryResult, ymlFileName: string, br
 
 function getCiPredefinedVals(branch: string, ymlFileName: string) {
   const ymlFileNameWithoutExt = path.basename(ymlFileName, path.extname(ymlFileName));
-  const ciServerInstanceId = `GHA-MBT-${config.owner}-${config.repo}`;
-  const executorName = `GHA-MBT-${config.owner}.${config.repo}.${branch}.${ymlFileNameWithoutExt}`;
+  const ciServerInstanceId = `GHA-MBT~${config.owner}~${config.repo}`;
+  const executorName = `GHA-MBT~${config.owner}.${config.repo}.${branch}.${ymlFileNameWithoutExt}`;
   const parentCiId = `${PLUGIN_VERSION}${SEP}${config.owner}${SEP}${config.repo}${SEP}${ymlFileName}${SEP}executor`;
-  const ciId = `${parentCiId}/${branch}`;
+  const ciId = `${parentCiId}${SEP}${branch}`;
   return { ciServerInstanceId, executorName, ciId, parentCiId };
 }
 
