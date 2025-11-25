@@ -29,7 +29,6 @@
 
 export default interface CiServerInfo {
   type: string;
-  version: string;
   url: string;
   instanceId: string;
   instanceIdFrom?: number;

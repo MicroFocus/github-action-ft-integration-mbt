@@ -34,5 +34,5 @@ export default interface CiServerBody {
   server_type?: string;
   instance_id?: string;
   url?: string;
-  plugin_version?: string;
+  //plugin_version?: string;
 }
