@@ -37,7 +37,7 @@ import CiExecutor from '../dto/octane/general/CiExecutor';
 import CiExecutorBody from '../dto/octane/general/bodies/CiExecutorBody';
 import CiServer from '../dto/octane/general/CiServer';
 import CiServerInfo from '../dto/octane/general/CiServerInfo';
-import { escapeQueryVal } from '../utils/utils';
+import { escapeQueryVal, isVersionGreater } from '../utils/utils';
 import { EntityConstants } from '../dto/octane/general/EntityConstants';
 import FolderBody from '../dto/octane/general/bodies/FolderBody';
 import Folder, { BaseFolder } from '../dto/octane/general/Folder';
@@ -48,6 +48,7 @@ import CiJobBody from '../dto/octane/general/bodies/CiJobBody';
 import CiServerBody from '../dto/octane/general/bodies/CiServerBody';
 import Test from '../dto/octane/general/Test';
 import MbtTestData from '../mbt/MbtTestData';
+import { THRESHOLD_OCTANE_VERSION, PLUGIN_VERSION } from '../utils/constants';
 const { ID, COLLECTION_NAME: MODEL_ITEMS, NAME, LOGICAL_NAME, ENTITY_NAME: MODEL_ITEM, ENTITY_SUBTYPE: MODEL_FOLDER, SUBTYPE, PARENT } = EntityConstants.ModelFolder;
 const { COLLECTION_NAME: AUTOMATED_TESTS, TEST_RUNNER } = EntityConstants.AutomatedTest;
 const { REPOSITORY_PATH } = EntityConstants.MbtUnit;
@@ -75,11 +76,20 @@ export default class OctaneClient {
   private static CI_INTERNAL_API_URL = `/internal-api/shared_spaces/${config.octaneSharedSpace}/workspaces/${config.octaneWorkspace}`;
   private static CI_API_URL = `/api/shared_spaces/${config.octaneSharedSpace}/workspaces/${config.octaneWorkspace}`;
 
+  private static _octaneVersionCached: string | null = null;
+  public static async getCachedOctaneVersion(): Promise<string> {
+    if (!this._octaneVersionCached) {
+      this._octaneVersionCached = await this.getOctaneVersion();
+    }
+    return this._octaneVersionCached;
+  }
+
   public static sendEvent = async (event: CiEvent, instanceId: string, url: string): Promise<void> => {
     const ciServerInfo: CiServerInfo = {
       instanceId,
       type: this.GITHUB_ACTIONS,
       url,
+      version: PLUGIN_VERSION,
       sendingTime: new Date().getTime()
     };
 
@@ -113,7 +123,7 @@ export default class OctaneClient {
       .and(Query.field(SERVER_TYPE).equal(this.GITHUB_ACTIONS));
 
     const ciServerQuery = qryBase.and(Query.field('url').equal(escapeQueryVal(config.repoUrl))).build();
-    const fldNames = ['instance_id', 'url', 'is_connected'];
+    const fldNames = ['instance_id', 'plugin_version', 'url', 'is_connected'];
     let res = await this.octane.get(CI_SERVERS).fields(...fldNames).query(ciServerQuery).limit(1).execute();
     let ciServer = null;
     if (res?.total_count && res.data?.length) {
@@ -135,9 +145,12 @@ export default class OctaneClient {
     this.logger.debug(`getOrCreateCiServer: instanceId=[${instanceId}], url=[${config.repoUrl}] ...`);
 
     let ciServer = await this.getCiServer(instanceId);
-    if (!ciServer) {
+    if (ciServer) {
+      await this.updatePluginVersionIfNeeded(instanceId, ciServer.plugin_version);
+    } else {
       const repoUrl = config.repoUrl.replace(/\.git$/, '');
       ciServer = await this.createCIServer(instanceId, repoUrl);
+      await this.updatePluginVersionIfNeeded(instanceId, PLUGIN_VERSION);
     }
     this.logger.debug("CI Server:", ciServer);
     return ciServer;
@@ -543,5 +556,33 @@ export default class OctaneClient {
       result.push(array.slice(i, i + size));
     }
     return result;
+  }
+
+  private static updatePluginVersion = async (instanceId: String): Promise<void> => {
+    const ver = PLUGIN_VERSION;
+    this.logger.debug(`updatePluginVersion: plugin_version=${ver} ...`);
+    const querystring = require('querystring');
+    const sdk = '';
+    const client_id = config.octaneClientId;
+    const selfUrl = querystring.escape(config.repoUrl);
+    await this.octane.executeCustomRequest(
+      `${this.ANALYTICS_CI_INTERNAL_API_URL}/servers/${instanceId}/tasks?self-type=${this.GITHUB_ACTIONS}&api-version=1&sdk-version=${sdk}&plugin-version=${ver}&self-url=${selfUrl}&client-id=${client_id}&client-server-user=`,
+      Octane.operationTypes.get
+    );
+  }
+
+  private static updatePluginVersionIfNeeded = async (instanceId: String, version: string): Promise<void> => {
+    this.logger.info(`Current CI Server version: '${version}'`);
+    const octaneVersion = await this.getCachedOctaneVersion();
+    if (!isVersionGreater(octaneVersion, THRESHOLD_OCTANE_VERSION)) {
+      if (!version || isVersionGreater(PLUGIN_VERSION, version)) {
+        this.logger.info(`Updating CI Server version to: '${PLUGIN_VERSION}'`);
+        try {
+          await this.updatePluginVersion(instanceId);
+        } catch (err) {
+          this.logger.error(`updatePluginVersionIfNeeded: Failed to update plugin version: ${(err as Error).message}`);
+        }
+      }
+    }
   }
 }

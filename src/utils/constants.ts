@@ -28,6 +28,7 @@
  */
 
 const PLUGIN_VERSION: string = '26.1.0';
+const THRESHOLD_OCTANE_VERSION: string = '26.0.0';
 const SEP = '|~~|';
 
-export { SEP, PLUGIN_VERSION };
+export { SEP, PLUGIN_VERSION, THRESHOLD_OCTANE_VERSION };

@@ -149,6 +149,26 @@ const extractWorkflowFileName = (workflowPath: string): string => {
   return path.basename(workflowPath);
 };
 
+const isVersionGreater = (v1: string, v2: string): boolean => {
+  if (!v1 || !v2) {
+    return false;
+  }
+
+  const v1Arr = v1.split('.');
+  const v2Arr = v2.split('.');
+
+  for (let i = 0; i < v1Arr.length && i < v2Arr.length; i++) {
+    const v1Part = parseInt(v1Arr[i]);
+    const v2Part = parseInt(v2Arr[i]);
+
+    if (v1Part !== v2Part) {
+      return v1Part > v2Part;
+    }
+  }
+
+  return v1Arr.length > v2Arr.length;
+}
+
 const sleep = async (milis: number): Promise<void> => {
   return new Promise<void>(resolve => {
     setTimeout(resolve, milis);
@@ -444,4 +464,4 @@ const getEventType = (event: string | null | undefined): ActionsEventType => {
   }
 };
 
-export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, getTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists, escapeXML, parseTimeToFloat, getLastFolderFromPath, getEventType };
+export { getHeadCommitSha, isBlank, isTestMainFile, getTestType, getParentFolderFullPath, saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, extractWorkflowFileName, isVersionGreater, sleep, escapeQueryVal, getTestPathPrefix, extractScmTestPath, extractScmPathFromActionPath, extractActionLogicalNameFromActionPath, extractActionNameFromActionPath, calcByExpr, getSafeDomParser, extractXmlFromTspOrMtrFile, getGuiTestDocument, getApiTestDocument, getFileIfExist, getTimestamp, escapePropVal, checkReadWriteAccess, checkFileExists, escapeXML, parseTimeToFloat, getLastFolderFromPath, getEventType };

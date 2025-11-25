@@ -33,5 +33,5 @@ export default interface CiServer {
   name: string,
   url: string;
   is_connected: boolean;
-  //plugin_version: string;
+  plugin_version: string;
 }

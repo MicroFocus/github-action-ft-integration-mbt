@@ -33,7 +33,7 @@ import { config } from './config/config';
 import ActionsEvent from './dto/github/ActionsEvent';
 import ActionsEventType from './dto/github/ActionsEventType';
 import { Logger } from './utils/logger';
-import { saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, getEventType } from './utils/utils';
+import { saveSyncedCommit, getSyncedCommit, getSyncedTimestamp, getEventType, isVersionGreater } from './utils/utils';
 import { context } from '@actions/github';
 import { getCreateOrUpdateTestRunner, sendExecutorFinishEvent, sendExecutorStartEvent } from './service/executorService';
 import Discovery from './discovery/Discovery';
@@ -58,7 +58,7 @@ import { CiCausesType, Result } from './dto/octane/events/CiTypes';
 import { publishResultsToOctane } from './service/testResultsService';
 import * as fs from 'fs';
 import FTL from './ft/FTL';
-import { PLUGIN_VERSION, SEP } from './utils/constants';
+import { PLUGIN_VERSION, SEP, THRESHOLD_OCTANE_VERSION } from './utils/constants';
 
 const logger: Logger = new Logger('eventHandler');
 const requiredKeys: WorkflowInputsKeys[] = ['executionId', 'suiteId', 'suiteRunId', 'testsToRun'];
@@ -198,7 +198,7 @@ export const handleCurrentEvent = async (): Promise<void> => {
     const workDir = process.cwd();
     logger.debug(`handleExecutorEvent: ...`);
     const execParams = generateExecParams(defaultParams, wfis);
-    const { ciServerInstanceId, executorName, ciId, parentCiId } = getCiPredefinedVals(branch!, ymlFileName);
+    const { ciServerInstanceId, executorName, ciId, parentCiId } = await getCiPredefinedVals(branch!, ymlFileName);
     const ciServer = await OctaneClient.getCiServer(ciServerInstanceId);
     if (!ciServer) {
       logger.error(`handleExecutorEvent: Could not find CI server with instanceId: ${ciServerInstanceId}`);
@@ -294,7 +294,7 @@ const isMinSyncIntervalElapsed = async (minSyncInterval: number): Promise<boolea
 }
 
 const doTestSync = async (discoveryRes: DiscoveryResult, ymlFileName: string, branch: string) => {
-  const { ciServerInstanceId, executorName, ciId } = getCiPredefinedVals(branch, ymlFileName);
+  const { ciServerInstanceId, executorName, ciId } = await getCiPredefinedVals(branch, ymlFileName);
 
   const ciServer = await OctaneClient.getOrCreateCiServer(ciServerInstanceId);
   const ciJob = await getOrCreateCiJob(executorName, ciId, ciServer, branch);
@@ -305,12 +305,18 @@ const doTestSync = async (discoveryRes: DiscoveryResult, ymlFileName: string, br
   await dispatchDiscoveryResults(tr.id, tr.scm_repository.id, discoveryRes);
 }
 
-function getCiPredefinedVals(branch: string, ymlFileName: string) {
+const getCiPredefinedVals = async (branch: string, ymlFileName: string): Promise<{ ciServerInstanceId: string; executorName: string; ciId: string; parentCiId: string }> => {
+  const octaneVersion = await OctaneClient.getCachedOctaneVersion();
   const ymlFileNameWithoutExt = path.basename(ymlFileName, path.extname(ymlFileName));
-  const ciServerInstanceId = `GHA-MBT~${config.owner}~${config.repo}`;
-  const executorName = `GHA-MBT~${config.owner}.${config.repo}.${branch}.${ymlFileNameWithoutExt}`;
-  const parentCiId = `${PLUGIN_VERSION}${SEP}${config.owner}${SEP}${config.repo}${SEP}${ymlFileName}${SEP}executor`;
-  const ciId = `${parentCiId}${SEP}${branch}`;
+  const ciServerInstanceId = `GHA-MBT-${config.owner}~${config.repo}`;
+  const executorName = `GHA-MBT-${config.owner}.${config.repo}.${branch}.${ymlFileNameWithoutExt}`;
+  let prefix = "", sep = "/"; 
+  if (isVersionGreater(octaneVersion, THRESHOLD_OCTANE_VERSION)) {
+    prefix = `${PLUGIN_VERSION}${SEP}`;
+    sep = SEP;
+  }
+  const parentCiId = `${prefix}${config.owner}${sep}${config.repo}${sep}${ymlFileName}${sep}executor`;
+  const ciId = `${parentCiId}${sep}${branch}`;
   return { ciServerInstanceId, executorName, ciId, parentCiId };
 }
 
